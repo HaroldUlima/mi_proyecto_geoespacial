@@ -194,7 +194,7 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
    
     <div class="card" id="infoBox">
       <div style="font-weight:600; margin-bottom:6px;">Resumen</div>
-      <div class="muted">Promedio de transacciones(junio - julio -agosto) 2025 :</div>
+      <div class="muted">Promedio de transacciones(Jun-Ago) 2025 :</div>
       <div id="promTotal" style="font-size:18px; font-weight:700; color:var(--bbva-blue);">0.00</div>
     </div>
 
@@ -367,7 +367,7 @@ async function fetchAndRender(){
         <div class="popup-row"><b>Tipo:</b> ${item.tipo}</div>
         <div class="popup-row"><b>Ubicación Interna:</b> ${item.ubicacion}</div>
         <div class="popup-sep"></div>
-        <div class="popup-row"><b>Promedio 2025:</b> ${item.promedio}</div>
+        <div class="popup-row"><b>Promedio Jun-Ago :</b> ${item.promedio}</div>
         
       </div>`;
 
