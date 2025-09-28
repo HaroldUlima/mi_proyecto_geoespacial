@@ -509,8 +509,4 @@ def index():
     return render_template_string(TEMPLATE, departamentos=DEPARTAMENTOS, provincias_all=PROVINCIAS_ALL, distritos_by_prov=DISTRITOS_BY_PROV, dist_by_dept=DIST_BY_DEPT, initial_center=initial_center, initial_zoom=initial_zoom )
 
 if __name__ == "__main__":
-    from waitress import serve
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 App en http://0.0.0.0:{port}")
-    serve(app, host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000)
