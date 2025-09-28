@@ -7,6 +7,8 @@ import pandas as pd
 import numpy as np
 from flask import Flask, render_template_string, request, jsonify
 
+
+
 # -------------------------
 # Cache de direcciones precalculadas
 # -------------------------
@@ -192,14 +194,14 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
    
     <div class="card" id="infoBox">
       <div style="font-weight:600; margin-bottom:6px;">Resumen</div>
-      <div class="muted">Promedio total de transacciones 2025 :</div>
+      <div class="muted">Promedio de transacciones(junio - julio -agosto) 2025 :</div>
       <div id="promTotal" style="font-size:18px; font-weight:700; color:var(--bbva-blue);">0.00</div>
     </div>
 
 
     <!-- Oficinas -->
     <div class="card" id="countBox">
-      <div style="font-weight:600; margin-bottom:6px;">Oficinas</div>
+      <div style="font-weight:600; margin-bottom:6px;">Atms en Oficinas</div>
       <div class="muted">Total:</div>
       <div id="oficinaTotal" style="font-size:16px; font-weight:700; color:var(--bbva-blue);">0</div>
 
@@ -216,7 +218,7 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
 
     <!-- Islas -->
     <div class="card" id="islaBox">
-      <div style="font-weight:600; margin-bottom:6px;">Islas</div>
+      <div style="font-weight:600; margin-bottom:6px;">Atms en Islas</div>
       <div class="muted">Total:</div>
       <div id="islaTotal" style="font-size:16px; font-weight:700; color:var(--bbva-blue);">0</div>
 
