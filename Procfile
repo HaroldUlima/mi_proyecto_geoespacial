@@ -1,1 +1,1 @@
-web: gunicorn geoespacial:app
+web: gunicorn geoespacial:appy

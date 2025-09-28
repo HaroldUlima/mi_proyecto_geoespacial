@@ -2,8 +2,6 @@ flask
 gunicorn
 pandas
 numpy
-requests
-folium
 openpyxl
-
-
+folium
+requests
