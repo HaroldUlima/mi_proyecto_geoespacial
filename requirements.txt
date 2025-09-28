@@ -1,6 +1,8 @@
 flask
 pandas
+numpy
 requests
-openpyxl
 folium
+openpyxl
+
 

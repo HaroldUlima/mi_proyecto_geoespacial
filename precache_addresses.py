@@ -7,12 +7,13 @@ import pandas as pd
 # -------------------------
 # Configuración
 # -------------------------
-EXCEL_FILE = r"C:\Users\p044095\Downloads\Mapa Geoespacial ATM (1) (1).xlsx"
-OUTPUT_CACHE = "address_cache.json"
+import os
+BASE_DIR = os.path.dirname(__file__)
+EXCEL_FILE = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
+OUTPUT_CACHE = os.path.join(BASE_DIR, "address_cache.json")
 
 COL_LAT = "LATITUD"
 COL_LON = "LONGITUD"
-
 # -------------------------
 # Cargar Excel
 # -------------------------

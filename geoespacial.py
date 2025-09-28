@@ -1,6 +1,4 @@
 # geoespacial.py
-# Aquí va tu código original de Flask con el mapa
-# geoespacial.py
 import os
 import re
 import unicodedata
@@ -30,20 +28,15 @@ def get_address(lat, lon):
 # -------------------------
 # Buscar archivo Excel (busca en /mnt/data y en Downloads)
 # -------------------------
-candidates = []
-upload_dir = "/mnt/data"
-if os.path.isdir(upload_dir):
-    for f in os.listdir(upload_dir):
-        if f.lower().endswith((".xlsx", ".xls")) and ("atm" in f.lower() or "mapa" in f.lower()):
-            candidates.append(os.path.join(upload_dir, f))
-downloads = os.path.join(os.path.expanduser("~"), "Downloads")
-if os.path.isdir(downloads):
-    for f in os.listdir(downloads):
-        if f.lower().endswith((".xlsx", ".xls")) and ("atm" in f.lower() or "mapa" in f.lower()):
-            candidates.append(os.path.join(downloads, f))
-if not candidates:
-    raise FileNotFoundError("No encontré archivo Excel con 'ATM' o 'Mapa' en /mnt/data ni en Downloads.")
-excel_path = candidates[0]
+# -------------------------
+# Usar archivo Excel desde carpeta data/
+# -------------------------
+BASE_DIR = os.path.dirname(__file__)
+excel_path = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
+
+if not os.path.exists(excel_path):
+    raise FileNotFoundError(f"No encontré el archivo Excel en {excel_path}")
+
 print("✅ Usando archivo Excel:", excel_path)
 
 # -------------------------
@@ -515,9 +508,6 @@ def index():
     initial_zoom = 6
     return render_template_string(TEMPLATE, departamentos=DEPARTAMENTOS, provincias_all=PROVINCIAS_ALL, distritos_by_prov=DISTRITOS_BY_PROV, dist_by_dept=DIST_BY_DEPT, initial_center=initial_center, initial_zoom=initial_zoom )
 
-
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 App corriendo en http://0.0.0.0:{port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+if __name__=="__main__":
+    print("🚀 App en http://127.0.0.1:5000")
+    app.run(host="127.0.0.1", port=5000, debug=True)
