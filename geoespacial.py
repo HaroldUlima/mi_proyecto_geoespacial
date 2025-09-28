@@ -126,6 +126,83 @@ DIST_BY_DEPT = df.groupby(COL_DEPT)[COL_DIST].apply(lambda s: sorted(s.dropna().
 app = Flask(__name__)
 
 # -------------------------
+# Seguridad: login con formulario (sesión)
+# -------------------------
+from functools import wraps
+from flask import redirect, url_for, session
+
+# usar SECRET_KEY en variables de entorno (no en el código)
+app.secret_key = os.getenv("SECRET_KEY", "cambiar_esto_por_una_clave_larga")
+
+# usuarios/clave desde variables de entorno (fallback para local)
+# en Render: crear APP_USER y APP_PASS en Settings -> Environment
+APP_USER = os.getenv("APP_USER", "bbva")
+APP_PASS = os.getenv("APP_PASS", "demo2025")
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Acceso Seguro — BBVA</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{font-family:Inter,Arial,Helvetica,sans-serif;background:#f4f7fb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+        .box{background:white;padding:28px;border-radius:12px;box-shadow:0 8px 30px rgba(10,30,70,0.08);width:360px;text-align:center;}
+        h2{color:#1464A5;margin:0 0 12px 0;}
+        input{width:100%;padding:10px;margin:8px 0;border:1px solid #e6eef8;border-radius:8px;}
+        button{background:#1464A5;color:white;border:none;padding:10px;border-radius:8px;width:100%;cursor:pointer;font-weight:600;}
+        .error{color:#c0392b;margin-bottom:8px;font-size:14px;}
+        .small{font-size:13px;color:#6b7a8a;margin-top:8px;}
+    </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Inicia sesión</h2>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input name="username" placeholder="Usuario (ej: bbva)" required autofocus>
+      <input name="password" type="password" placeholder="Contraseña" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <div class="small">Acceso restringido — Solo personal autorizado</div>
+  </div>
+</body>
+</html>
+"""
+
+# decorador para rutas que requieren login
+def login_required(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if session.get("user") != APP_USER:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return wrapped
+
+# ruta de login (GET muestra el formulario, POST valida)
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        u = request.form.get("username", "")
+        p = request.form.get("password", "")
+        if u == APP_USER and p == APP_PASS:
+            session["user"] = u
+            return redirect(url_for("index"))
+        return render_template_string(LOGIN_TEMPLATE, error="Usuario o contraseña incorrectos")
+    return render_template_string(LOGIN_TEMPLATE)
+
+# logout
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect(url_for("login"))
+
+
+
+
+
+# -------------------------
 # Template HTML/JS (estética tipo banco — BBVA)
 # -------------------------
 
@@ -455,6 +532,7 @@ fetchAndRender();
 # API de puntos
 # -------------------------
 @app.route("/api/points")
+@login_required
 def api_points():
     departamento = request.args.get("departamento", "").strip().upper()
     provincia = request.args.get("provincia", "").strip().upper()
@@ -506,6 +584,7 @@ def api_points():
 # Página principal
 # -------------------------
 @app.route("/")
+@login_required
 def index():
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist() if not df.empty else [-9.19, -75.0152]
     initial_zoom = 6
