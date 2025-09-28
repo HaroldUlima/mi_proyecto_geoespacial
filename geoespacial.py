@@ -131,13 +131,16 @@ app = Flask(__name__)
 from functools import wraps
 from flask import redirect, url_for, session
 
-# usar SECRET_KEY en variables de entorno (no en el código)
-app.secret_key = os.getenv("SECRET_KEY", "cambiar_esto_por_una_clave_larga")
+# Clave secreta de Flask: también desde entorno (si no existe, usa un fallback local)
+app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
 
-# usuarios/clave desde variables de entorno (fallback para local)
-# en Render: crear APP_USER y APP_PASS en Settings -> Environment
-APP_USER = os.getenv("APP_USER", "bbva")
-APP_PASS = os.getenv("APP_PASS", "demo2025")
+# Usuarios/clave SOLO desde Render
+APP_USER = os.getenv("APP_USERNAME")
+APP_PASS = os.getenv("APP_PASSWORD")
+
+if not APP_USER or not APP_PASS:
+    print("⚠️ Advertencia: APP_USERNAME o APP_PASSWORD no están configurados en Render")
+    
 
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
