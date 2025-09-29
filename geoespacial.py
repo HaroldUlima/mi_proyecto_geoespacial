@@ -256,8 +256,14 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
 </style>
 </head>
 <body>
-<header style=" display:flex; justify-content:center; align-items:center; background-color:#003366; height:70px;">
-  <h1 style="color:white;font-size:2.5rem;margin:0;"> Mapa de ATMs — BBVA </h1>
+
+<header style="display:flex; justify-content:space-between; align-items:center; background-color:#003366; height:70px; padding:0 20px;">
+  <h1 style="color:white;font-size:2.5rem;margin:0;">Mapa de ATMs — BBVA</h1>
+  <a href="/logout"
+     style="color:white; text-decoration:none; background:#1464A5; padding:8px 16px; border-radius:8px;
+            font-weight:600; font-size:16px;">
+     Cerrar sesión
+  </a>
 </header>
 
 <div class="topbar">
