@@ -158,11 +158,55 @@ LOGIN_TEMPLATE = """
     <title>Acceso Seguro — BBVA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body{font-family:Inter,Arial,Helvetica,sans-serif;background:#f4f7fb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
-        .box{background:white;padding:28px;border-radius:12px;box-shadow:0 8px 30px rgba(10,30,70,0.08);width:360px;text-align:center;}
-        h2{color:#1464A5;margin:0 0 12px 0;}
-        input{width:100%;padding:10px;margin:8px 0;border:1px solid #e6eef8;border-radius:8px;}
-        button{background:#1464A5;color:white;border:none;padding:10px;border-radius:8px;width:100%;cursor:pointer;font-weight:600;}
+        /* Fondo que ocupa toda la pantalla */
+        body{
+            margin:0;
+            padding:0;
+            height:100vh;
+            width:100%;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background: url('{{ url_for('static', filename='bbva.png') }}') no-repeat center center fixed;
+            background-size: cover; /* hace que la imagen cubra toda el área */
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        /* Caja del formulario */
+        .box{
+            background: rgba(255,255,255,0.85); /* semitransparente para que se lea */
+            padding: 30px 35px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            width: 360px;
+            text-align: center;
+        }
+
+        h2{
+            color:#1464A5;
+            margin-top:0;
+            margin-bottom:15px;
+        }
+
+        input{
+            width:100%;
+            padding:10px;
+            margin:8px 0;
+            border:1px solid #ddd;
+            border-radius:8px;
+        }
+
+        button{
+            background:#1464A5;
+            color:white;
+            border:none;
+            padding:10px;
+            border-radius:8px;
+            width:100%;
+            cursor:pointer;
+            font-weight:600;
+        }
+
         .error{color:#c0392b;margin-bottom:8px;font-size:14px;}
         .small{font-size:13px;color:#6b7a8a;margin-top:8px;}
     </style>
@@ -172,7 +216,7 @@ LOGIN_TEMPLATE = """
     <h2>Inicia sesión</h2>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="post">
-      <input name="username" placeholder="Usuario (ej: bbva)" required autofocus>
+      <input name="username" placeholder="Usuario" required autofocus>
       <input name="password" type="password" placeholder="Contraseña" required>
       <button type="submit">Entrar</button>
     </form>
@@ -265,11 +309,15 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
 </head>
 <body>
 
-<header style="display:flex; justify-content:space-between; align-items:center; background-color:#003366; height:70px; padding:0 20px;">
-  <h1 style="color:white;font-size:2.5rem;margin:0;">Mapa de ATMs — BBVA</h1>
+<header style="background-color:#003366; height:70px; padding:0 20px;
+               display:flex; align-items:center; position:relative;">
+  <div style="flex:1; text-align:center;">
+    <h1 style="color:white; font-size:2.5rem; margin:0;">Mapa de ATMs — BBVA</h1>
+  </div>
   <a href="/logout"
-     style="color:white; text-decoration:none; background:#1464A5; padding:8px 16px; border-radius:8px;
-            font-weight:600; font-size:16px;">
+     style="color:white; text-decoration:none; background:#1464A5;
+            padding:8px 16px; border-radius:8px; font-weight:600; font-size:16px;
+            position:absolute; right:20px;">
      Cerrar sesión
   </a>
 </header>
