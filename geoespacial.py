@@ -190,7 +190,9 @@ def login():
         u = request.form.get("username", "")
         p = request.form.get("password", "")
         if u == APP_USER and p == APP_PASS:
+            session.clear()  # 🔹 limpiar cualquier sesión anterior
             session["user"] = u
+            session.permanent = False  # 🔹 cookie expira al cerrar navegador
             return redirect(url_for("index"))
         return render_template_string(LOGIN_TEMPLATE, error="Usuario o contraseña incorrectos")
     return render_template_string(LOGIN_TEMPLATE)
@@ -198,9 +200,11 @@ def login():
 # logout
 @app.route("/logout")
 def logout():
-    session.pop("user", None)
-    return redirect(url_for("login"))
-
+    session.clear()  # 🔹 elimina toda la sesión
+    resp = redirect(url_for("login"))
+    # 🔹 borra cookie de sesión también
+    resp.set_cookie("session", "", expires=0)
+    return resp
 
 
 
