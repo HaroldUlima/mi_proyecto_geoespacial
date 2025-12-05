@@ -5,15 +5,7 @@ import unicodedata
 import json
 import pandas as pd
 import numpy as np
-from flask import (
-    Flask,
-    render_template_string,
-    request,
-    jsonify,
-    redirect,
-    url_for,
-    session,
-)
+from flask import Flask, render_template_string, request, jsonify, redirect, url_for, session
 from functools import wraps
 
 
@@ -27,12 +19,10 @@ if os.path.exists(CACHE_FILE):
 else:
     address_cache = {}
 
-
 def get_address(lat, lon):
-    """Devuelve dirección desde cache por lat/lon."""
     try:
         key = f"{float(lat):.6f},{float(lon):.6f}"
-    except Exception:
+    except:
         key = f"{lat},{lon}"
     return address_cache.get(key, "Dirección no encontrada")
 
@@ -60,10 +50,8 @@ def normalize_col(s):
     s = re.sub(r"[^A-Z0-9 ]+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
-
 raw = pd.read_excel(excel_path)
 norm_map = {normalize_col(c): c for c in raw.columns}
-
 
 def find_col_by_keywords(keywords):
     for norm, orig in norm_map.items():
@@ -76,20 +64,19 @@ def find_col_by_keywords(keywords):
 # ============================================
 # 4. COLUMNAS PRINCIPALES
 # ============================================
-COL_ATM = find_col_by_keywords(["ATM"]) or "ATM"
-COL_NAME = find_col_by_keywords(["NOMBRE", "CAJERO", "NOMBRECAJERO", "NOMBRE CAJERO", "NOMBRE_CAJERO"]) or None
+COL_ATM  = find_col_by_keywords(["ATM"]) or "ATM"
+COL_NAME = find_col_by_keywords(["NOMBRE","CAJERO","NOMBRECAJERO"]) or None
 COL_DEPT = find_col_by_keywords(["DEPARTAMENTO"]) or "DEPARTAMENTO"
 COL_PROV = find_col_by_keywords(["PROVINCIA"]) or "PROVINCIA"
 COL_DIST = find_col_by_keywords(["DISTRITO"]) or "DISTRITO"
-COL_LAT = find_col_by_keywords(["LATITUD", "LAT"]) or "LAT"
-COL_LON = find_col_by_keywords(["LONGITUD", "LON"]) or "LON"
-PROM_COL = find_col_by_keywords(["PROMEDIO", "PROM"]) or None
-COL_DIV = find_col_by_keywords(["DIVISION", "DIVISIÓN"]) or "DIVISION"
+COL_LAT  = find_col_by_keywords(["LATITUD","LAT"]) or "LAT"
+COL_LON  = find_col_by_keywords(["LONGITUD","LON"]) or "LON"
+PROM_COL = find_col_by_keywords(["PROMEDIO","PROM"]) or None
+COL_DIV  = find_col_by_keywords(["DIVISION","DIVISIÓN"]) or "DIVISION"
 COL_TIPO = find_col_by_keywords(["TIPO"]) or "TIPO"
-COL_UBIC = find_col_by_keywords(["UBICACION", "UBICACIÓN", "UBICACION_INTERNA", "UBICACIÓN_INTERNA"]) or "UBICACION_INTERNA"
-COL_DIR = find_col_by_keywords(["DIRECCION", "DIRECCIÓN"]) or None
+COL_UBIC = find_col_by_keywords(["UBICACION","UBICACIÓN","UBICACION INTERNA"]) or "UBICACION_INTERNA"
+COL_DIR  = find_col_by_keywords(["DIRECCION","DIRECCIÓN"]) or None
 
-# Asegurar columnas
 if PROM_COL is None:
     raw["PROM_FAKE"] = 0.0
     PROM_COL = "PROM_FAKE"
@@ -97,13 +84,10 @@ if PROM_COL is None:
 if COL_DIR is None:
     raw["DIRECCION_API"] = ""
     COL_DIR = "DIRECCION_API"
-else:
-    raw[COL_DIR] = raw[COL_DIR].astype(str)
 
+# Garantizar columnas
 for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, PROM_COL, COL_DIV, COL_TIPO, COL_UBIC]:
     if c not in raw.columns:
-        if c in (COL_LAT, COL_LON):
-            raise KeyError(f"Falta columna obligatoria de coordenadas: {c}")
         raw[c] = ""
 
 
@@ -113,8 +97,7 @@ for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, PROM_COL, COL
 df = raw.copy()
 
 df[COL_LAT] = (
-    df[COL_LAT]
-    .astype(str)
+    df[COL_LAT].astype(str)
     .str.replace(",", ".", regex=False)
     .str.replace(r"[^\d\.\-]", "", regex=True)
     .replace("", np.nan)
@@ -122,8 +105,7 @@ df[COL_LAT] = (
 )
 
 df[COL_LON] = (
-    df[COL_LON]
-    .astype(str)
+    df[COL_LON].astype(str)
     .str.replace(",", ".", regex=False)
     .str.replace(r"[^\d\.\-]", "", regex=True)
     .replace("", np.nan)
@@ -141,23 +123,11 @@ print(f"📊 Registros válidos: {len(df)}")
 # ============================================
 DEPARTAMENTOS = sorted(df[COL_DEPT].dropna().astype(str).unique().tolist())
 
-PROVINCIAS_ALL = (
-    df.groupby(COL_DEPT)[COL_PROV]
-    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
-    .to_dict()
-)
-DISTRITOS_BY_PROV = (
-    df.groupby(COL_PROV)[COL_DIST]
-    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
-    .to_dict()
-)
-DIST_BY_DEPT = (
-    df.groupby(COL_DEPT)[COL_DIST]
-    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
-    .to_dict()
-)
+PROVINCIAS_ALL   = df.groupby(COL_DEPT)[COL_PROV].apply(lambda s: sorted(s.dropna().unique())).to_dict()
+DISTRITOS_BY_PROV = df.groupby(COL_PROV)[COL_DIST].apply(lambda s: sorted(s.dropna().unique())).to_dict()
+DIST_BY_DEPT      = df.groupby(COL_DEPT)[COL_DIST].apply(lambda s: sorted(s.dropna().unique())).to_dict()
 
-DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique().tolist())
+DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique().tolist())   # NUEVO
 
 
 # ============================================
@@ -172,7 +142,6 @@ APP_PASS = os.getenv("APP_PASSWORD")
 if not APP_USER or not APP_PASS:
     print("⚠️ APP_USERNAME o APP_PASSWORD no configurados en Render")
 
-
 @app.after_request
 def add_header(resp):
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -180,17 +149,125 @@ def add_header(resp):
     resp.headers["Expires"] = "0"
     return resp
 
-
 def login_required(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if session.get("user") != APP_USER:
             return redirect(url_for("login"))
         return f(*args, **kwargs)
-
     return wrapped
 
+LOGIN_TEMPLATE = """(SE AGREGA EN PARTE 2)"""
 
+
+# ============================================
+# 8. RUTA LOGIN
+# ============================================
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        u = request.form.get("username")
+        p = request.form.get("password")
+
+        if u == APP_USER and p == APP_PASS:
+            session.clear()
+            session["user"] = u
+            session.permanent = False
+            return redirect(url_for("index"))
+
+        return render_template_string(LOGIN_TEMPLATE, error="Usuario o contraseña incorrectos")
+
+    return render_template_string(LOGIN_TEMPLATE)
+
+
+# ============================================
+# 9. LOGOUT
+# ============================================
+@app.route("/logout")
+def logout():
+    session.clear()
+    resp = redirect(url_for("login"))
+    resp.set_cookie("session", "", expires=0)
+    return resp
+
+
+# ============================================
+# 10. API /api/points  (FILTRO DIVISIÓN)
+# ============================================
+@app.route("/api/points")
+@login_required
+def api_points():
+
+    departamento = request.args.get("departamento", "").upper().strip()
+    provincia    = request.args.get("provincia", "").upper().strip()
+    distrito     = request.args.get("distrito", "").upper().strip()
+    division     = request.args.get("division", "").upper().strip()
+
+    df_f = df.copy()
+
+    df_f[COL_DEPT] = df_f[COL_DEPT].astype(str).str.upper().str.strip()
+    df_f[COL_PROV] = df_f[COL_PROV].astype(str).str.upper().str.strip()
+    df_f[COL_DIST] = df_f[COL_DIST].astype(str).str.upper().str.strip()
+    df_f[COL_DIV]  = df_f[COL_DIV].astype(str).str.upper().str.strip()
+
+    if departamento:
+        df_f = df_f[df_f[COL_DEPT] == departamento]
+    if provincia:
+        df_f = df_f[df_f[COL_PROV] == provincia]
+    if distrito:
+        df_f = df_f[df_f[COL_DIST] == distrito]
+    if division:
+        df_f = df_f[df_f[COL_DIV] == division]
+
+    points = []
+    for _, r in df_f.iterrows():
+
+        nombre = str(r.get(COL_NAME)) if COL_NAME else str(r.get(COL_ATM))
+
+        points.append({
+            "lat": float(r[COL_LAT]),
+            "lon": float(r[COL_LON]),
+            "atm": str(r.get(COL_ATM)),
+            "nombre": nombre,
+            "promedio": float(r.get(PROM_COL,0)),
+            "division": str(r.get(COL_DIV)),
+            "tipo": str(r.get(COL_TIPO)),
+            "ubicacion": str(r.get(COL_UBIC)),
+            "departamento": str(r.get(COL_DEPT)),
+            "provincia": str(r.get(COL_PROV)),
+            "distrito": str(r.get(COL_DIST)),
+            "direccion": get_address(r[COL_LAT], r[COL_LON])
+        })
+
+    return jsonify(points)
+
+
+# ============================================
+# 11. INDEX -> Enviar datos al template
+# ============================================
+@app.route("/")
+@login_required
+def index():
+
+    initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
+    initial_zoom = 6
+
+    return render_template_string(
+        TEMPLATE,
+        departamentos = DEPARTAMENTOS,
+        provincias_all = PROVINCIAS_ALL,
+        distritos_by_prov = DISTRITOS_BY_PROV,
+        dist_by_dept = DIST_BY_DEPT,
+        divisiones = DIVISIONES,
+        initial_center = initial_center,
+        initial_zoom = initial_zoom
+    )
+
+
+
+    # ============================================================
+# TEMPLATE LOGIN
+# ============================================================
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -243,30 +320,9 @@ LOGIN_TEMPLATE = """
 """
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        u = request.form.get("username", "")
-        p = request.form.get("password", "")
-        if u == APP_USER and p == APP_PASS:
-            session.clear()
-            session["user"] = u
-            session.permanent = False
-            return redirect(url_for("index"))
-        return render_template_string(LOGIN_TEMPLATE, error="Usuario o contraseña incorrectos")
-    return render_template_string(LOGIN_TEMPLATE)
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    resp = redirect(url_for("login"))
-    resp.set_cookie("session", "", expires=0)
-    return resp
-
 
 # ============================================================
-# 8. TEMPLATE PRINCIPAL (HTML + CSS + JS)
+# TEMPLATE PRINCIPAL (HTML + CSS + JS)
 # ============================================================
 TEMPLATE = """
 <!doctype html>
@@ -366,6 +422,7 @@ select{
 .muted{
     color:var(--muted); font-size:12px;
 }
+
 </style>
 </head>
 
@@ -490,17 +547,19 @@ select{
     </div>
 </div>
 
+
 <!-- JS Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
+
 <script>
-const PROVINCIAS_ALL    = {{ provincias_all|tojson }};
+const PROVINCIAS_ALL = {{ provincias_all|tojson }};
 const DISTRITOS_BY_PROV = {{ distritos_by_prov|tojson }};
-const DIST_BY_DEPT      = {{ dist_by_dept|tojson }};
-const INITIAL_CENTER    = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-const INITIAL_ZOOM      = {{ initial_zoom }};
+const DIST_BY_DEPT = {{ dist_by_dept|tojson }};
+const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
+const INITIAL_ZOOM = {{ initial_zoom }};
 
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
@@ -512,58 +571,51 @@ const heatLayer = L.heatLayer([], {radius:25, blur:20, maxZoom:17});
 heatLayer.addTo(map);
 
 
-// ================================
-// DOM ELEMENTS
-// ================================
 const selDept = document.getElementById('selDepartamento');
 const selProv = document.getElementById('selProvincia');
 const selDist = document.getElementById('selDistrito');
 const selDiv  = document.getElementById('selDivision');
 const chkHeat = document.getElementById('chkHeat');
 
-const infoCount    = document.getElementById('infoCount');
-const promTotalEl  = document.getElementById('promTotal');
+const infoCount = document.getElementById('infoCount');
+const promTotalEl = document.getElementById('promTotal');
+
 const oficinaTotalEl = document.getElementById('oficinaTotal');
 const oficinaDispEl  = document.getElementById('oficinaDisp');
 const oficinaMonEl   = document.getElementById('oficinaMon');
 const oficinaRecEl   = document.getElementById('oficinaRec');
-const islaTotalEl    = document.getElementById('islaTotal');
-const islaDispEl     = document.getElementById('islaDisp');
-const islaMonEl      = document.getElementById('islaMon');
-const islaRecEl      = document.getElementById('islaRec');
+
+const islaTotalEl = document.getElementById('islaTotal');
+const islaDispEl  = document.getElementById('islaDisp');
+const islaMonEl   = document.getElementById('islaMon');
+const islaRecEl   = document.getElementById('islaRec');
 
 
-// ================================
-// POBLADO DE SELECTS
-// ================================
+// =====================================================
+// POBLAR SELECTS
+// =====================================================
 function populateProvincias(dept){
     selProv.innerHTML = '<option value="">-- Todas --</option>';
     if (dept && PROVINCIAS_ALL[dept]){
-        PROVINCIAS_ALL[dept].forEach(p=>{
-            selProv.innerHTML += `<option value="${p}">${p}</option>`;
-        });
+        PROVINCIAS_ALL[dept].forEach(p=> selProv.innerHTML += `<option value="${p}">${p}</option>`);
     }
     populateDistritos(dept, "");
 }
 
 function populateDistritos(dept, prov){
     selDist.innerHTML = '<option value="">-- Todos --</option>';
-    if (prov && DISTRITOS_BY_PROV[prov]){
-        DISTRITOS_BY_PROV[prov].forEach(d=>{
-            selDist.innerHTML += `<option value="${d}">${d}</option>`;
-        });
-    } else if (dept && DIST_BY_DEPT[dept]){
-        DIST_BY_DEPT[dept].forEach(d=>{
-            selDist.innerHTML += `<option value="${d}">${d}</option>`;
-        });
-    }
+    if (prov && DISTRITOS_BY_PROV[prov])
+        DISTRITOS_BY_PROV[prov].forEach(d=> selDist.innerHTML += `<option value="${d}">${d}</option>`);
+    else if (dept && DIST_BY_DEPT[dept])
+        DIST_BY_DEPT[dept].forEach(d=> selDist.innerHTML += `<option value="${d}">${d}</option>`);
 }
 
 
-// ================================
-// ICONOS
-// ================================
+// =====================================================
+// ÍCONOS
+// =====================================================
 function getIcon(ubic, promedio){
+
     ubic = (ubic||"").toUpperCase();
 
     if(ubic.includes("OFICINA")){
@@ -582,9 +634,9 @@ function getIcon(ubic, promedio){
 }
 
 
-// ================================
+// =====================================================
 // FETCH + RENDER
-// ================================
+// =====================================================
 async function fetchAndRender(){
 
     const params = new URLSearchParams();
@@ -596,14 +648,14 @@ async function fetchAndRender(){
 
     infoCount.textContent = "...";
 
-    const res  = await fetch("/api/points?" + params.toString());
+    const res = await fetch("/api/points?" + params.toString());
     const data = await res.json();
 
     markersLayer.clearLayers();
     heatLayer.setLatLngs([]);
 
     let bounds = [];
-    let heat   = [];
+    let heat = [];
     let sumProm = 0;
 
     let ofTot=0, ofDisp=0, ofMon=0, ofRec=0;
@@ -655,7 +707,7 @@ async function fetchAndRender(){
     if(!chkHeat.checked) map.removeLayer(heatLayer);
     else if(!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
 
-    infoCount.textContent   = data.length;
+    infoCount.textContent = data.length;
     promTotalEl.textContent = Math.round(sumProm).toString();
 
     oficinaTotalEl.textContent = ofTot;
@@ -670,131 +722,31 @@ async function fetchAndRender(){
 }
 
 
-// ================================
+// =====================================================
 // EVENTOS
-// ================================
+// =====================================================
 selDept.addEventListener("change", ()=>{
-    // si cambio dept, limpio division
-    selDiv.value = "";
     populateProvincias(selDept.value);
     populateDistritos(selDept.value, selProv.value);
     fetchAndRender();
 });
-
 selProv.addEventListener("change", ()=>{
-    // si cambio provincia, limpio division
-    selDiv.value = "";
     populateDistritos(selDept.value, selProv.value);
     fetchAndRender();
 });
-
-selDist.addEventListener("change", ()=>{
-    // si cambio distrito, limpio division
-    selDiv.value = "";
-    fetchAndRender();
-});
-
-selDiv.addEventListener("change", ()=>{
-    // 🔵 cuando seleccionas División:
-    //    limpiamos departamento/provincia/distrito
-    selDept.value = "";
-    selProv.innerHTML = '<option value="">-- Todas --</option>';
-    selDist.innerHTML = '<option value="">-- Todos --</option>';
-    fetchAndRender();
-});
-
+selDist.addEventListener("change", fetchAndRender);
+selDiv.addEventListener("change", fetchAndRender);
 chkHeat.addEventListener("change", fetchAndRender);
 
 
-// ================================
+// =====================================================
 // INICIALIZAR
-// ================================
+// =====================================================
 populateProvincias("");
 populateDistritos("", "");
 fetchAndRender();
-
 </script>
 
 </body>
 </html>
 """
-
-
-# ============================================================
-# 9. API /api/points  (incluye filtro de División)
-# ============================================================
-@app.route("/api/points")
-@login_required
-def api_points():
-    departamento = request.args.get("departamento", "").upper().strip()
-    provincia    = request.args.get("provincia", "").upper().strip()
-    distrito     = request.args.get("distrito", "").upper().strip()
-    division     = request.args.get("division", "").upper().strip()
-
-    df_f = df.copy()
-
-    df_f[COL_DEPT] = df_f[COL_DEPT].astype(str).str.upper().str.strip()
-    df_f[COL_PROV] = df_f[COL_PROV].astype(str).str.upper().str.strip()
-    df_f[COL_DIST] = df_f[COL_DIST].astype(str).str.upper().str.strip()
-    df_f[COL_DIV]  = df_f[COL_DIV].astype(str).str.upper().str.strip()
-
-    if departamento:
-        df_f = df_f[df_f[COL_DEPT] == departamento]
-    if provincia:
-        df_f = df_f[df_f[COL_PROV] == provincia]
-    if distrito:
-        df_f = df_f[df_f[COL_DIST] == distrito]
-    if division:
-        df_f = df_f[df_f[COL_DIV] == division]
-
-    points = []
-    for _, r in df_f.iterrows():
-        if COL_NAME and COL_NAME in r.index:
-            nombre = str(r.get(COL_NAME, "")).strip()
-        else:
-            nombre = str(r.get(COL_ATM, ""))
-
-        lat_v = float(r[COL_LAT])
-        lon_v = float(r[COL_LON])
-
-        points.append({
-            "lat": lat_v,
-            "lon": lon_v,
-            "atm": str(r.get(COL_ATM, "")),
-            "nombre": nombre,
-            "promedio": float(r.get(PROM_COL, 0.0)),
-            "division": str(r.get(COL_DIV, "")),
-            "tipo": str(r.get(COL_TIPO, "")),
-            "ubicacion": str(r.get(COL_UBIC, "")),
-            "departamento": str(r.get(COL_DEPT, "")),
-            "provincia": str(r.get(COL_PROV, "")),
-            "distrito": str(r.get(COL_DIST, "")),
-            "direccion": get_address(lat_v, lon_v),
-        })
-
-    return jsonify(points)
-
-
-# ============================================================
-# 10. INDEX
-# ============================================================
-@app.route("/")
-@login_required
-def index():
-    initial_center = df[[COL_LAT, COL_LON]].mean().tolist() if not df.empty else [-9.19, -75.0152]
-    initial_zoom = 6
-
-    return render_template_string(
-        TEMPLATE,
-        departamentos=DEPARTAMENTOS,
-        provincias_all=PROVINCIAS_ALL,
-        distritos_by_prov=DISTRITOS_BY_PROV,
-        dist_by_dept=DIST_BY_DEPT,
-        divisiones=DIVISIONES,
-        initial_center=initial_center,
-        initial_zoom=initial_zoom,
-    )
-
-# Si quieres ejecutarlo local:
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", port=5000, debug=True)
