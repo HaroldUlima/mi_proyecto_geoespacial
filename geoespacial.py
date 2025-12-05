@@ -1,5 +1,5 @@
 # ============================================================
-#   PARTE 1 / 2  —  BACKEND COMPLETO + LOGIN + SELECTOR
+#   PARTE 1 / 2 — BACKEND COMPLETO + LOGIN + SELECTOR + API
 # ============================================================
 
 import os
@@ -8,8 +8,12 @@ import unicodedata
 import json
 import pandas as pd
 import numpy as np
-from flask import Flask, render_template_string, request, jsonify, redirect, url_for, session
+from flask import (
+    Flask, render_template_string, request,
+    jsonify, redirect, url_for, session
+)
 from functools import wraps
+
 
 # ============================================================
 # 1. CACHE DE DIRECCIONES
@@ -22,9 +26,10 @@ else:
     address_cache = {}
 
 def get_address(lat, lon):
+    """Devuelve la dirección desde la cache usando lat/lon."""
     try:
         key = f"{float(lat):.6f},{float(lon):.6f}"
-    except:
+    except Exception:
         key = f"{lat},{lon}"
     return address_cache.get(key, "Dirección no encontrada")
 
@@ -36,11 +41,11 @@ BASE_DIR = os.path.dirname(__file__)
 excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
 
 if not os.path.exists(excel_main):
-    raise FileNotFoundError("No encontré archivo Excel de ATMs.")
+    raise FileNotFoundError(f"No encontré archivo Excel en: {excel_main}")
 
 raw = pd.read_excel(excel_main)
 
-# Normalizador
+# Normalizador de nombres de columnas
 def normalize_col(s):
     s = str(s)
     s = unicodedata.normalize("NFKD", s)
@@ -58,24 +63,25 @@ def find_col(keys):
                 return o
     return None
 
-# Detectar columnas
+# Detectar columnas principales
 COL_ATM  = find_col(["ATM"]) or "ATM"
-COL_NAME = find_col(["NOMBRE", "CAJERO"]) or None
+COL_NAME = find_col(["NOMBRE", "CAJERO", "NOMBRECAJERO"]) or None
 COL_DEPT = find_col(["DEPARTAMENTO"]) or "DEPARTAMENTO"
 COL_PROV = find_col(["PROVINCIA"]) or "PROVINCIA"
 COL_DIST = find_col(["DISTRITO"]) or "DISTRITO"
-COL_LAT  = find_col(["LAT"]) or "LAT"
-COL_LON  = find_col(["LON"]) or "LON"
-COL_DIV  = find_col(["DIVISION"]) or "DIVISION"
+COL_LAT  = find_col(["LATITUD", "LAT"]) or "LAT"
+COL_LON  = find_col(["LONGITUD", "LON", "LONG"]) or "LON"
+COL_DIV  = find_col(["DIVISION", "DIVISIÓN"]) or "DIVISION"
 COL_TIPO = find_col(["TIPO"]) or "TIPO"
-COL_UBIC = find_col(["UBICACION","UBICACION_INTERNA"]) or "UBICACION_INTERNA"
-PROM_COL = find_col(["PROMEDIO","PROM"]) or None
+COL_UBIC = find_col(["UBICACION", "UBICACIÓN", "UBICACION_INTERNA"]) or "UBICACION_INTERNA"
+PROM_COL = find_col(["PROMEDIO", "PROM"]) or None
 
 if PROM_COL is None:
     raw["PROM_FAKE"] = 0.0
     PROM_COL = "PROM_FAKE"
 
-for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, COL_DIV, COL_TIPO, COL_UBIC]:
+# Garantizar columnas (excepto coord)
+for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_DIV, COL_TIPO, COL_UBIC]:
     if c not in raw.columns:
         raw[c] = ""
 
@@ -89,7 +95,6 @@ df[COL_LAT] = (
     .replace("", np.nan)
     .astype(float)
 )
-
 df[COL_LON] = (
     df[COL_LON].astype(str)
     .str.replace(",", ".", regex=False)
@@ -108,37 +113,45 @@ df[PROM_COL] = pd.to_numeric(df[PROM_COL], errors="coerce").fillna(0.0)
 DEPARTAMENTOS = sorted(df[COL_DEPT].dropna().astype(str).unique().tolist())
 
 PROVINCIAS_BY_DEPT = df.groupby(COL_DEPT)[COL_PROV].apply(
-    lambda s: sorted(s.dropna().unique())
+    lambda s: sorted(s.dropna().astype(str).unique())
 ).to_dict()
 
 DIST_BY_PROV = df.groupby(COL_PROV)[COL_DIST].apply(
-    lambda s: sorted(s.dropna().unique())
+    lambda s: sorted(s.dropna().astype(str).unique())
 ).to_dict()
 
 # División jerárquica
 DIV_BY_DEPT = df.groupby(COL_DEPT)[COL_DIV].apply(
-    lambda s: sorted(s.dropna().unique())
+    lambda s: sorted(s.dropna().astype(str).unique())
 ).to_dict()
 
 DIV_BY_PROV = df.groupby(COL_PROV)[COL_DIV].apply(
-    lambda s: sorted(s.dropna().unique())
+    lambda s: sorted(s.dropna().astype(str).unique())
 ).to_dict()
 
 DIV_BY_DIST = df.groupby(COL_DIST)[COL_DIV].apply(
-    lambda s: sorted(s.dropna().unique())
+    lambda s: sorted(s.dropna().astype(str).unique())
 ).to_dict()
 
-DIVISIONES = sorted(df[COL_DIV].dropna().unique())
+DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique())
 
 
 # ============================================================
-# 4. FLASK + LOGIN BBVA (imagen de fondo)
+# 4. FLASK + LOGIN BBVA
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
 
 APP_USER = os.getenv("APP_USERNAME")
 APP_PASS = os.getenv("APP_PASSWORD")
+
+# Evitar caché (por seguridad al hacer logout)
+@app.after_request
+def add_header(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
@@ -215,6 +228,14 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear()
+    resp = redirect(url_for("login"))
+    resp.set_cookie("session", "", expires=0)
+    return resp
+
+@app.route("/")
+def home():
+    if session.get("user") == APP_USER:
+        return redirect(url_for("selector"))
     return redirect(url_for("login"))
 
 
@@ -229,8 +250,16 @@ SELECTOR_TEMPLATE = """
 <title>Selector de Capas</title>
 <style>
 body{
-    font-family:Arial; background:#eef3f9;
+    font-family:Arial, Helvetica, sans-serif;
+    background:#eef3f9;
     padding:40px;
+}
+h1{text-align:center;}
+.grid{
+    display:flex;
+    gap:40px;
+    justify-content:center;
+    margin-top:40px;
 }
 .box{
     width:260px; height:260px;
@@ -240,10 +269,6 @@ body{
     font-size:28px; cursor:pointer; transition:.2s;
 }
 .box:hover{ transform:scale(1.05); }
-.grid{
-    display:flex; gap:40px; justify-content:center; margin-top:40px;
-}
-h1{text-align:center;}
 </style>
 </head>
 <body>
@@ -272,11 +297,11 @@ def selector():
 @app.route("/mapa/<tipo>")
 @login_required
 def mapa_tipo(tipo):
-    if tipo not in ["oficinas","islas","agentes"]:
+    if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
     return render_template_string(
-        TEMPLATE_MAPA,
+        TEMPLATE_MAPA,          # se define en PARTE 2
         tipo_mapa=tipo,
         departamentos=DEPARTAMENTOS,
         provincias_by_dept=PROVINCIAS_BY_DEPT,
@@ -291,7 +316,7 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API /api/points — Filtrado jerárquico completo
+# 7. API /api/points — Filtrado jerárquico + por capa
 # ============================================================
 @app.route("/api/points")
 @login_required
@@ -312,13 +337,13 @@ def api_points():
     dff[COL_DIV]  = dff[COL_DIV].astype(str).str.upper().str.strip()
     dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
 
-    # Filtrar por capa
+    # Filtrar por capa (ubicación interna)
     if tipo_mapa == "oficinas":
-        dff = dff[dff[COL_UBIC].str.contains("OFICINA")]
+        dff = dff[dff[COL_UBIC].str.contains("OFICINA", na=False)]
     elif tipo_mapa == "islas":
-        dff = dff[dff[COL_UBIC].str.contains("ISLA")]
+        dff = dff[dff[COL_UBIC].str.contains("ISLA", na=False)]
     elif tipo_mapa == "agentes":
-        dff = dff[dff[COL_UBIC].str.contains("AGENTE")]  # Actualmente quedará vacío
+        dff = dff[dff[COL_UBIC].str.contains("AGENTE", na=False)]  # hoy quedará vacío
 
     # Filtros jerárquicos
     if dpto:
@@ -332,12 +357,14 @@ def api_points():
 
     puntos = []
     for _, r in dff.iterrows():
+        nombre = str(r.get(COL_NAME)) if COL_NAME else str(r.get(COL_ATM))
 
-        nombre = str(r.get(COL_NAME)) if COL_NAME else str(r[COL_ATM])
+        lat_v = float(r[COL_LAT])
+        lon_v = float(r[COL_LON])
 
         puntos.append({
-            "lat": float(r[COL_LAT]),
-            "lon": float(r[COL_LON]),
+            "lat": lat_v,
+            "lon": lon_v,
             "atm": str(r[COL_ATM]),
             "nombre": nombre,
             "promedio": float(r[PROM_COL]),
@@ -347,24 +374,14 @@ def api_points():
             "departamento": str(r[COL_DEPT]),
             "provincia": str(r[COL_PROV]),
             "distrito": str(r[COL_DIST]),
-            "direccion": get_address(r[COL_LAT], r[COL_LON])
+            "direccion": get_address(lat_v, lon_v)
         })
 
     return jsonify(puntos)
 
 
 # ============================================================
-# 8. IMPORTAMOS TEMPLATE MAPA (PARTE 2)
-# ============================================================
-#  → Viene en el siguiente mensaje como PARTE 2
-# ============================================================
-
-
-
-
-
-# ============================================================
-#   PARTE 2 / 2  —  TEMPLATE DEL MAPA COMPLETO
+#  PARTE 2 / 2 — TEMPLATE MAPA COMPLETO + PANEL DERECHO BBVA
 # ============================================================
 
 TEMPLATE_MAPA = """
@@ -372,113 +389,140 @@ TEMPLATE_MAPA = """
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapa — {{ tipo_mapa|upper }}</title>
+<title>Mapa — {{ tipo_mapa.capitalize() }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
 <style>
-body{
-    margin:0;
-    font-family:Arial, Helvetica, sans-serif;
-    background:#eef3f9;
+/* ----------- GENERAL ----------- */
+:root { 
+  --bbva-blue: #1464A5; 
+  --bbva-dark: #072146; 
+  --muted: #6b7a8a; 
+  --card: #ffffff;
 }
+html,body{
+  margin:0; padding:0;
+  height:100%; 
+  font-family: Inter, 'Segoe UI', Tahoma, Arial, sans-serif;
+  background:#eef3f9;
+  color:var(--bbva-dark);
+}
+
+/* ----------- HEADER ----------- */
 header{
-    background:#003366;
-    color:white;
-    height:70px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    position:relative;
+  background:#003366; 
+  color:white;
+  padding:14px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
 }
-header h1{
-    font-size:2rem;
-    margin:0;
-}
-.logout{
-    position:absolute;
-    right:20px;
-    background:#1464A5;
-    color:white;
-    padding:8px 16px;
-    border-radius:8px;
-    text-decoration:none;
-    font-weight:bold;
+.logout-btn{
+  position:absolute; 
+  right:20px;
+  background:#1464A5;
+  padding:8px 16px;
+  border-radius:8px;
+  text-decoration:none;
+  color:white;
+  font-weight:600;
 }
 
-/* Controles */
+/* ----------- CONTROLS ----------- */
 .controls{
-    background:white;
-    padding:14px;
-    margin:20px;
-    border-radius:12px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.1);
-    display:flex;
-    gap:12px;
-    align-items:center;
-    flex-wrap:wrap;
+  background:white;
+  padding:12px;
+  margin:12px 20px;
+  border-radius:12px;
+  box-shadow:0 6px 14px rgba(0,0,0,0.15);
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
 }
-.controls label{
-    font-weight:bold;
-    font-size:14px;
-}
+label{ font-size:14px; color:var(--muted); }
 select{
-    padding:6px 10px;
-    border-radius:6px;
-    border:1px solid #ccc;
+  padding:8px 10px;
+  border:1px solid #e0e6ef;
+  border-radius:8px;
+  font-size:14px;
+  min-width:160px;
+}
+#map { 
+  height:78vh; 
+  flex:1;
+  border-radius:12px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.12);
 }
 
-#map{
-    margin:20px;
-    height:78vh;
-    border-radius:12px;
-    overflow:hidden;
-    box-shadow:0 8px 20px rgba(0,0,0,0.15);
+/* ----------- LAYOUT ----------- */
+.main{
+  display:flex;
+  gap:16px;
+  padding:0 20px 20px 20px;
 }
 
-/* Popup estilo BBVA */
-.leaflet-popup-content-wrapper{
-    border-radius:12px;
-    box-shadow:0 6px 20px rgba(0,0,0,0.25);
-}
-.popup-title{
-    font-size:15px;
-    font-weight:bold;
-    color:#1464A5;
-    margin-bottom:6px;
-}
-.popup-row{
-    margin:2px 0;
+/* ----------- PANEL DERECHO ----------- */
+.side{
+  width:330px;
 }
 
-/* Iconos personalizados */
-.icon-bank div{
-    font-size:32px;
+/* Caja para capa */
+.card{
+  background:white;
+  padding:14px;
+  border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom:14px;
 }
-.icon-isla div{
-    font-size:32px;
-    color:deepskyblue;
+
+/* Caja para ATM seleccionado */
+.card-atm{
+  background:white;
+  padding:20px;
+  border-radius:14px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.18);
+  margin-bottom:14px;
+  font-size:15px;
 }
-.icon-round div{
-    width:14px;
-    height:14px;
-    border-radius:50%;
-    border:2px solid white;
+
+.card-atm pre{
+  white-space:pre-wrap;
+  font-size:15px;
+  line-height:1.35;
+  color:#072146;
+  font-weight:500;
 }
+
+.btnvolver{
+  background:#1464A5;
+  padding:8px 14px;
+  display:inline-block;
+  margin-top:10px;
+  border-radius:6px;
+  color:white;
+  cursor:pointer;
+  font-size:14px;
+}
+
 </style>
-</head>
 
+</head>
 <body>
 
+<!-- HEADER -->
 <header>
-  <h1>Mapa — {{ tipo_mapa|upper }}</h1>
-  <a href="/logout" class="logout">Cerrar sesión</a>
+  <h2>Mapa BBVA — {{ tipo_mapa.upper() }}</h2>
+  <a class="logout-btn" href="/logout">Cerrar sesión</a>
 </header>
 
+<!-- CONTROLES -->
 <div class="controls">
-
   <label>Departamento:
     <select id="selDepartamento">
       <option value="">-- Todos --</option>
@@ -509,175 +553,242 @@ select{
     </select>
   </label>
 
-  <label style="margin-left:20px;">
-    <input type="checkbox" id="chkHeat" checked> Heatmap
-  </label>
+  <label><input type="checkbox" id="chkHeat" checked> Heatmap</label>
 
-  <span style="margin-left:20px; font-weight:bold;">
-    Total: <span id="infoCount">--</span> ATMs
-  </span>
+  <div style="flex:1"></div>
 
+  <div style="font-weight:bold;">Mostrando <span id="infoCount">--</span> ATMs</div>
 </div>
 
-<div id="map"></div>
+<!-- MAIN LAYOUT -->
+<div class="main">
 
+  <!-- MAPA -->
+  <div id="map"></div>
+
+  <!-- PANEL DERECHO -->
+  <div class="side">
+
+    <!-- PANEL DE CAPA (por defecto visible) -->
+    <div id="panelCapa" class="card">
+      <h3 style="margin-top:0;">Resumen — {{ tipo_mapa|capitalize }}</h3>
+      <div>Promedio total: <b><span id="promTotal">0</span></b></div>
+      <hr>
+
+      <div><b>ATMs en {{ tipo_mapa }}</b></div>
+      <div>Total: <b><span id="totalAtms">0</span></b></div>
+      <div>Dispensador: <b><span id="disp">0</span></b></div>
+      <div>Monedero: <b><span id="mon">0</span></b></div>
+      <div>Reciclador: <b><span id="rec">0</span></b></div>
+
+      <hr>
+      <h4>Leyenda</h4>
+      <div>🔴 ATM ≥ 4</div>
+      <div>🟢 ATM ≤ 3</div>
+      <div>🏦 Oficina</div>
+      <div>🌐 Isla</div>
+    </div>
+
+    <!-- PANEL ATM SELECCIONADO (oculto por defecto) -->
+    <div id="panelATM" class="card-atm" style="display:none;">
+      <pre id="atmDetails"></pre>
+      <div class="btnvolver" onclick="volverPanel()">VOLVER</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- JS Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
+// =====================================================
+// VARIABLES
+// =====================================================
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
 const DIST_BY_PROV = {{ dist_by_prov|tojson }};
-const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
-const DIV_BY_PROV  = {{ div_by_prov|tojson }};
-const DIV_BY_DIST  = {{ div_by_dist|tojson }};
-const TIPO_MAPA    = "{{ tipo_mapa }}";
+
+const TIPO = "{{ tipo_mapa }}";
+
+let markersLayer = L.markerClusterGroup({ chunkedLoading:true });
+let heatLayer = L.heatLayer([], {radius:25, blur:20});
 
 const map = L.map('map').setView(
-    [{{ initial_center[0] }}, {{ initial_center[1] }}],
-    {{ initial_zoom }}
+  [{{ initial_center[0] }}, {{ initial_center[1] }}],
+  {{ initial_zoom }}
 );
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19
+}).addTo(map);
 
-const markers = L.markerClusterGroup({ chunkedLoading:true });
-const heat = L.heatLayer([], {radius:28, blur:22});
-markers.addTo(map);
-heat.addTo(map);
-
-
-// =======================================
-//  POPULAR COMBOS JERÁRQUICOS
-// =======================================
-const selDep  = document.getElementById("selDepartamento");
-const selProv = document.getElementById("selProvincia");
-const selDist = document.getElementById("selDistrito");
-const selDiv  = document.getElementById("selDivision");
-const chkHeat = document.getElementById("chkHeat");
-const infoBox = document.getElementById("infoCount");
-
-function updateProvincias() {
-    let d = selDep.value;
-    selProv.innerHTML = '<option value="">-- Todas --</option>';
-    if (d && PROV_BY_DEPT[d]) {
-        PROV_BY_DEPT[d].forEach(p=>{
-            selProv.innerHTML += `<option value="${p}">${p}</option>`;
-        });
-    }
-    updateDistritos();
-}
-
-function updateDistritos() {
-    let p = selProv.value;
-    let d = selDep.value;
-    selDist.innerHTML = '<option value="">-- Todos --</option>';
-    if (p && DIST_BY_PROV[p]) {
-        DIST_BY_PROV[p].forEach(x=>{
-            selDist.innerHTML += `<option value="${x}">${x}</option>`;
-        });
-    } else if (d && PROV_BY_DEPT[d]) {
-        // fallback
-    }
-}
-
-selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
-selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
-selDist.onchange = ()=> fetchPoints();
-selDiv.onchange  = ()=> fetchPoints();
-chkHeat.onchange = ()=> fetchPoints();
+markersLayer.addTo(map);
+heatLayer.addTo(map);
 
 
-// =======================================
-//  FUNCIÓN PRINCIPAL
-// =======================================
-async function fetchPoints(){
+// =====================================================
+// POBLAR PROVINCIAS
+// =====================================================
+selDepartamento.onchange = ()=>{
+  const dept = selDepartamento.value;
+  selProvincia.innerHTML = '<option value="">-- Todas --</option>';
+  selDistrito.innerHTML = '<option value="">-- Todos --</option>';
 
-    const d  = selDep.value;
-    const p  = selProv.value;
-    const di = selDist.value;
-    const dv = selDiv.value;
-
-    const qs = `tipo=${TIPO_MAPA}&departamento=${d}&provincia=${p}&distrito=${di}&division=${dv}`;
-    const res = await fetch(`/api/points?${qs}`);
-    const data = await res.json();
-
-    infoBox.innerText = data.length;
-
-    markers.clearLayers();
-    heat.setLatLngs([]);
-
-    let heatPts = [];
-    let bounds = [];
-
-    data.forEach(pt=>{
-        let icon;
-
-        // Icono por tipo de capa
-        if(pt.ubicacion.includes("OFICINA")){
-            icon = L.divIcon({
-                className:"icon-bank",
-                html:"<div>🏦</div>",
-                iconSize:[32,32],
-                iconAnchor:[16,16]
-            });
-        }
-        else if(pt.ubicacion.includes("ISLA")){
-            icon = L.divIcon({
-                className:"icon-isla",
-                html:"<div>🌐</div>",
-                iconSize:[32,32],
-                iconAnchor:[16,16]
-            });
-        }
-        else{
-            let col = pt.promedio >= 4 ? "red":"green";
-            icon = L.divIcon({
-                className:"icon-round",
-                html:`<div style="background:${col};"></div>`,
-                iconSize:[14,14],
-                iconAnchor:[7,7]
-            });
-        }
-
-        const popup = `
-            <div class='popup-title'>${pt.nombre}</div>
-            <div class='popup-row'><b>ATM:</b> ${pt.atm}</div>
-            <div class='popup-row'><b>División:</b> ${pt.division}</div>
-            <div class='popup-row'><b>Tipo:</b> ${pt.tipo}</div>
-            <div class='popup-row'><b>Ubicación:</b> ${pt.ubicacion}</div>
-            <div class='popup-row'><b>Departamento:</b> ${pt.departamento}</div>
-            <div class='popup-row'><b>Provincia:</b> ${pt.provincia}</div>
-            <div class='popup-row'><b>Distrito:</b> ${pt.distrito}</div>
-            <div class='popup-row'><b>Promedio:</b> ${pt.promedio}</div>
-            <div class='popup-row'><b>Dirección:</b> ${pt.direccion}</div>
-        `;
-
-        const m = L.marker([pt.lat, pt.lon], {icon:icon}).bindPopup(popup);
-        markers.addLayer(m);
-
-        heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio)]);
-        bounds.push([pt.lat, pt.lon]);
+  if(PROV_BY_DEPT[dept]){
+    PROV_BY_DEPT[dept].forEach(p=>{
+      selProvincia.innerHTML += `<option value="${p}">${p}</option>`;
     });
+  }
+  fetchAndRender();
+};
 
-    heat.setLatLngs(heatPts);
+selProvincia.onchange = ()=>{
+  const prov = selProvincia.value;
+  selDistrito.innerHTML = '<option value="">-- Todos --</option>';
 
-    if(bounds.length===1) map.setView(bounds[0], 15);
-    else if(bounds.length>1) map.fitBounds(bounds, {padding:[20,20]});
+  if(DIST_BY_PROV[prov]){
+    DIST_BY_PROV[prov].forEach(d=>{
+      selDistrito.innerHTML += `<option value="${d}">${d}</option>`;
+    });
+  }
+  fetchAndRender();
+};
 
-    if(!chkHeat.checked){
-        map.removeLayer(heat);
-    } else {
-        heat.addTo(map);
-    }
+selDistrito.onchange = fetchAndRender;
+selDivision.onchange = fetchAndRender;
+chkHeat.onchange = fetchAndRender;
+
+
+// =====================================================
+// ICONOS CUSTOM
+// =====================================================
+function iconFor(p){
+  // Oficina
+  if(p.ubicacion.includes("OFICINA")){
+    return L.divIcon({
+      html:"<div style='font-size:32px;'>🏦</div>",
+      iconSize:[32,32], iconAnchor:[16,32]
+    });
+  }
+  // Isla
+  if(p.ubicacion.includes("ISLA")){
+    return L.divIcon({
+      html:"<div style='font-size:32px;color:deepskyblue;'>🌐</div>",
+      iconSize:[32,32], iconAnchor:[16,32]
+    });
+  }
+  // Normal ATM
+  const color = p.promedio >= 4 ? "red" : "green";
+  return L.divIcon({
+    html:`<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;"></div>`,
+    iconSize:[14,14], iconAnchor:[7,7]
+  });
 }
 
-// inicial
-fetchPoints();
+
+// =====================================================
+// MOSTRAR PANEL ATM
+// =====================================================
+function showATMPanel(p){
+  document.getElementById("panelCapa").style.display="none";
+  document.getElementById("panelATM").style.display="block";
+
+  const txt = 
+`______________
+ ATM ${p.atm}
+______________
+
+• Nombre: ${p.nombre}
+• Dirección: ${p.direccion}
+• División: ${p.division}
+• Tipo: ${p.tipo}
+• Ubicación: ${p.ubicacion}
+
+• Dpto/Prov/Dist:
+  ${p.departamento} / ${p.provincia} / ${p.distrito}
+
+______________
+Promedio: ${p.promedio}
+______________`;
+
+  document.getElementById("atmDetails").textContent = txt;
+}
+
+function volverPanel(){
+  document.getElementById("panelATM").style.display="none";
+  document.getElementById("panelCapa").style.display="block";
+}
+
+
+// =====================================================
+// FETCH + RENDER
+// =====================================================
+async function fetchAndRender(){
+  const params = new URLSearchParams();
+  params.append("tipo", TIPO);
+  if(selDepartamento.value) params.append("departamento", selDepartamento.value);
+  if(selProvincia.value) params.append("provincia", selProvincia.value);
+  if(selDistrito.value) params.append("distrito", selDistrito.value);
+  if(selDivision.value) params.append("division", selDivision.value);
+
+  const res = await fetch("/api/points?" + params.toString());
+  const data = await res.json();
+
+  markersLayer.clearLayers();
+  heatLayer.setLatLngs([]);
+
+  let heatPts = [];
+  let bounds = [];
+
+  // Conteo para panel de capa
+  let total=0, disp=0, mon=0, rec=0;
+  let sumProm=0;
+
+  data.forEach(p=>{
+    total++;
+    sumProm += p.promedio;
+
+    // Conteo por tipo
+    const t = p.tipo.toUpperCase();
+    if(t.includes("DISP")) disp++;
+    if(t.includes("MON"))  mon++;
+    if(t.includes("REC"))  rec++;
+
+    // Marker
+    const m = L.marker([p.lat,p.lon], {icon:iconFor(p)})
+      .on("click", ()=> showATMPanel(p));
+
+    markersLayer.addLayer(m);
+    heatPts.push([p.lat,p.lon, Math.max(1,p.promedio)]);
+    bounds.push([p.lat,p.lon]);
+  });
+
+  if(bounds.length===1) map.setView(bounds[0], 14);
+  else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
+
+  heatLayer.setLatLngs(heatPts);
+
+  if(chkHeat.checked) heatLayer.addTo(map);
+  else map.removeLayer(heatLayer);
+
+  // Actualizar panel capa
+  infoCount.textContent = total;
+  promTotal.textContent = Math.round(sumProm);
+  totalAtms.textContent = total;
+  disp.textContent = disp;
+  mon.textContent = mon;
+  rec.textContent = rec;
+
+  // Volver panel si estaba viendo un ATM
+  volverPanel();
+}
+
+// Inicial
+fetchAndRender();
 
 </script>
-
 </body>
 </html>
 """
-
-
