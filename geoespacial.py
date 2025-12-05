@@ -50,7 +50,7 @@ if not os.path.exists(excel_main):
 
 raw = pd.read_excel(excel_main)
 
-# ---------------- Normalizador de columnas -------------------
+# ---------------- Normalizador de nombres de columna -----------
 def normalize_col(s):
     s = str(s)
     s = unicodedata.normalize("NFKD", s)
@@ -71,7 +71,7 @@ def find_col(keys):
     return None
 
 
-# ---------------- Detectar columnas ---------------------------
+# ---------------- Detectar columnas principales ----------------
 COL_ATM = find_col(["COD_ATM", "ATM"]) or "ATM"
 COL_NAME = find_col(["NOMBRE", "CAJERO"]) or None
 COL_DEPT = find_col(["DEPARTAMENTO"]) or "DEPARTAMENTO"
@@ -84,10 +84,12 @@ COL_TIPO = find_col(["TIPO"]) or "TIPO"
 COL_UBIC = find_col(["UBICACION", "UBICACIÓN", "UBICACION INTERNA"]) or "UBICACION_INTERNA"
 PROM_COL = find_col(["PROMEDIO", "PROM"]) or None
 
+# Si no existe columna de promedio, creamos una falsa
 if PROM_COL is None:
     raw["PROM_FAKE"] = 0.0
     PROM_COL = "PROM_FAKE"
 
+# Asegurar columnas mínimas
 for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, COL_DIV, COL_TIPO, COL_UBIC, PROM_COL]:
     if c not in raw.columns:
         raw[c] = ""
@@ -96,14 +98,16 @@ df = raw.copy()
 
 # Limpieza de coordenadas
 df[COL_LAT] = (
-    df[COL_LAT].astype(str)
+    df[COL_LAT]
+    .astype(str)
     .str.replace(",", ".", regex=False)
     .str.replace(r"[^\d\.\-]", "", regex=True)
     .replace("", np.nan)
     .astype(float)
 )
 df[COL_LON] = (
-    df[COL_LON].astype(str)
+    df[COL_LON]
+    .astype(str)
     .str.replace(",", ".", regex=False)
     .str.replace(r"[^\d\.\-]", "", regex=True)
     .replace("", np.nan)
@@ -116,7 +120,7 @@ df[COL_TIPO] = df[COL_TIPO].astype(str).fillna("")
 df[COL_UBIC] = df[COL_UBIC].astype(str).fillna("")
 
 # ============================================================
-# 3. LISTAS PARA FILTROS
+# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA
 # ============================================================
 DEPARTAMENTOS = sorted(df[COL_DEPT].dropna().astype(str).unique().tolist())
 
@@ -132,17 +136,99 @@ DIST_BY_PROV = (
     .to_dict()
 )
 
+DIV_BY_DEPT = (
+    df.groupby(COL_DEPT)[COL_DIV]
+    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
+    .to_dict()
+)
+DIV_BY_PROV = (
+    df.groupby(COL_PROV)[COL_DIV]
+    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
+    .to_dict()
+)
+DIV_BY_DIST = (
+    df.groupby(COL_DIST)[COL_DIV]
+    .apply(lambda s: sorted(s.dropna().astype(str).unique()))
+    .to_dict()
+)
+
 DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique())
 
 
 # ============================================================
-# 4. FLASK + LOGIN
+# 4. FLASK + LOGIN (con imagen bbva.png)
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
 
 APP_USER = os.getenv("APP_USERNAME")
 APP_PASS = os.getenv("APP_PASSWORD")
+
+if not APP_USER or not APP_PASS:
+    print("⚠️ APP_USERNAME / APP_PASSWORD no configurados en Render.")
+
+
+@app.after_request
+def add_header(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Acceso Seguro — BBVA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{
+    margin:0; padding:0; height:100vh; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    background:url('{{ url_for('static', filename='bbva.png') }}')
+               no-repeat center center fixed;
+    background-size:cover;
+    font-family:Arial,Helvetica,sans-serif;
+}
+.box{
+    background:rgba(255,255,255,0.88);
+    padding:30px 35px;
+    border-radius:12px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.3);
+    width:360px;
+    text-align:center;
+}
+h2{color:#1464A5; margin:0 0 15px 0;}
+input{
+    width:100%; padding:10px; margin:8px 0;
+    border-radius:8px; border:1px solid #ddd;
+}
+button{
+    width:100%; padding:10px;
+    background:#1464A5; color:white;
+    border:none; border-radius:8px;
+    font-weight:600; cursor:pointer;
+}
+.error{color:#c0392b; font-size:14px; margin-bottom:8px;}
+.small{font-size:13px; color:#6b7a8a; margin-top:8px;}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>Inicia sesión</h2>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input name="username" placeholder="Usuario" required autofocus>
+      <input name="password" type="password" placeholder="Contraseña" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <div class="small">Acceso restringido — Solo personal autorizado</div>
+  </div>
+</body>
+</html>
+"""
 
 
 def login_required(f):
@@ -155,51 +241,13 @@ def login_required(f):
     return wrapped
 
 
-# ---------------- LOGIN TEMPLATE -----------------------------
-LOGIN_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Acceso Seguro — BBVA</title>
-<style>
-body{
-    margin:0; padding:0; height:100vh; width:100%;
-    display:flex; align-items:center; justify-content:center;
-    background:url('{{ url_for('static', filename='bbva.png') }}') no-repeat center center fixed;
-    background-size:cover;
-    font-family:Arial;
-}
-.box{
-    background:rgba(255,255,255,0.88);
-    padding:30px;
-    border-radius:12px;
-    width:360px;
-    text-align:center;
-}
-</style>
-</head>
-<body>
-<div class="box">
-  <h2>Inicia sesión</h2>
-  {% if error %}<div style='color:red;'>{{ error }}</div>{% endif %}
-  <form method="post">
-    <input name="username" placeholder="Usuario" required>
-    <input name="password" type="password" placeholder="Contraseña" required>
-    <button type="submit">Entrar</button>
-  </form>
-</div>
-</body>
-</html>
-"""
-
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         u = request.form.get("username")
         p = request.form.get("password")
         if u == APP_USER and p == APP_PASS:
+            session.clear()
             session["user"] = u
             return redirect(url_for("selector"))
         return render_template_string(LOGIN_TEMPLATE, error="Credenciales incorrectas")
@@ -209,11 +257,13 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    resp = redirect(url_for("login"))
+    resp.set_cookie("session", "", expires=0)
+    return resp
 
 
 # ============================================================
-# 5. SELECTOR DE CAPAS (IMÁGENES MÁS GRANDES)
+# 5. SELECTOR DE CAPAS (con tus imágenes)
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -221,60 +271,88 @@ SELECTOR_TEMPLATE = """
 <head>
 <meta charset="utf-8">
 <title>Selector de Capas — BBVA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{ background:#eef4fb; padding:40px; text-align:center; font-family:Arial; }
-.grid{ display:flex; justify-content:center; gap:40px; margin-top:40px; }
-
+body{
+    margin:0; padding:40px 20px;
+    font-family:Arial,Helvetica,sans-serif;
+    background:#eef4fb;
+}
+h1{
+    text-align:center;
+    color:#072146;
+}
+.grid{
+    margin-top:40px;
+    display:flex;
+    justify-content:center;
+    gap:40px;
+    flex-wrap:wrap;
+}
 .card{
-    width:380px;
-    height:300px;
+    width:320px; height:260px;
     background:white;
     border-radius:20px;
     box-shadow:0 8px 26px rgba(0,0,0,0.15);
     cursor:pointer;
-    padding:14px;
-    transition:0.2s;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:16px 14px;
+    transition:transform .18s ease, box-shadow .18s ease;
 }
-.card:hover{ transform:scale(1.03); }
-
+.card:hover{
+    transform:translateY(-4px) scale(1.02);
+    box-shadow:0 12px 32px rgba(0,0,0,0.25);
+}
 .card img{
     width:100%;
-    height:210px;
+    height:170px;
     object-fit:cover;
     border-radius:14px;
 }
 .card-title{
     margin-top:12px;
-    font-weight:bold;
-    font-size:20px;
+    font-size:18px;
+    font-weight:700;
+    color:#072146;
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.card-title span.icon{
+    font-size:22px;
 }
 </style>
 </head>
-
 <body>
+
 <h1>Seleccione la capa</h1>
 
 <div class="grid">
 
   <div class="card" onclick="location.href='/mapa/oficinas'">
-    <img src="{{ url_for('static', filename='oficina.png') }}">
-    <div class="card-title">🏦 Oficinas</div>
+    <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficinas BBVA">
+    <div class="card-title"><span class="icon">🏦</span>Oficinas</div>
   </div>
 
   <div class="card" onclick="location.href='/mapa/islas'">
-    <img src="{{ url_for('static', filename='isla.png') }}">
-    <div class="card-title">🌐 Islas</div>
+    <img src="{{ url_for('static', filename='isla.png') }}" alt="Islas BBVA">
+    <div class="card-title"><span class="icon">🌐</span>Islas</div>
   </div>
 
   <div class="card" onclick="location.href='/mapa/agentes'">
-    <img src="{{ url_for('static', filename='agente.png') }}">
-    <div class="card-title">🧍 Agentes</div>
+    <img src="{{ url_for('static', filename='agente.png') }}" alt="Agentes BBVA">
+    <div class="card-title"><span class="icon">🧍</span>Agentes</div>
   </div>
 
 </div>
+
 </body>
 </html>
 """
+
 
 @app.route("/selector")
 @login_required
@@ -283,7 +361,7 @@ def selector():
 
 
 # ============================================================
-# 6. MAPA POR CAPA
+# 6. RUTA DEL MAPA POR CAPA
 # ============================================================
 @app.route("/mapa/<tipo>")
 @login_required
@@ -291,68 +369,96 @@ def mapa_tipo(tipo):
     if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
-    center = df[[COL_LAT, COL_LON]].mean().tolist()
+    initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
     return render_template_string(
         TEMPLATE_MAPA,
         tipo_mapa=tipo,
         departamentos=DEPARTAMENTOS,
         provincias_by_dept=PROVINCIAS_BY_DEPT,
         dist_by_prov=DIST_BY_PROV,
+        div_by_dept=DIV_BY_DEPT,
+        div_by_prov=DIV_BY_PROV,
+        div_by_dist=DIV_BY_DIST,
         divisiones=DIVISIONES,
-        initial_center=center,
+        initial_center=initial_center,
         initial_zoom=6,
     )
 
 
 # ============================================================
-# 7. API POINTS
+# 7. API /api/points — Filtrado jerárquico completo
 # ============================================================
 @app.route("/api/points")
 @login_required
 def api_points():
-    tipo = request.args.get("tipo", "")
+    tipo_mapa = request.args.get("tipo", "").lower()
+
     dpto = request.args.get("departamento", "").upper().strip()
     prov = request.args.get("provincia", "").upper().strip()
     dist = request.args.get("distrito", "").upper().strip()
+    divi = request.args.get("division", "").upper().strip()
 
     dff = df.copy()
-    dff[COL_DEPT] = dff[COL_DEPT].str.upper()
-    dff[COL_PROV] = dff[COL_PROV].str.upper()
-    dff[COL_DIST] = dff[COL_DIST].str.upper()
 
-    # Filtro por capa
-    if tipo == "oficinas":
-        dff = dff[dff[COL_UBIC].str.contains("OFICINA")]
-    elif tipo == "islas":
-        dff = dff[dff[COL_UBIC].str.contains("ISLA")]
-    elif tipo == "agentes":
-        dff = dff[dff[COL_UBIC].str.contains("AGENTE")]
+    dff[COL_DEPT] = dff[COL_DEPT].astype(str).str.upper().str.strip()
+    dff[COL_PROV] = dff[COL_PROV].astype(str).str.upper().str.strip()
+    dff[COL_DIST] = dff[COL_DIST].astype(str).str.upper().str.strip()
+    dff[COL_DIV] = dff[COL_DIV].astype(str).str.upper().str.strip()
+    dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
+    dff[COL_TIPO] = dff[COL_TIPO].astype(str)
 
-    # Filtros geográficos
+    # Filtrar por capa
+    if tipo_mapa == "oficinas":
+        dff = dff[dff[COL_UBIC].str.contains("OFICINA", na=False)]
+    elif tipo_mapa == "islas":
+        dff = dff[dff[COL_UBIC].str.contains("ISLA", na=False)]
+    elif tipo_mapa == "agentes":
+        dff = dff[dff[COL_UBIC].str.contains("AGENTE", na=False)]
+
+    # Filtros jerárquicos
     if dpto:
         dff = dff[dff[COL_DEPT] == dpto]
     if prov:
         dff = dff[dff[COL_PROV] == prov]
     if dist:
         dff = dff[dff[COL_DIST] == dist]
+    if divi:
+        dff = dff[dff[COL_DIV] == divi]
 
     puntos = []
     for _, r in dff.iterrows():
-        puntos.append({
-            "lat": float(r[COL_LAT]),
-            "lon": float(r[COL_LON]),
-            "atm": str(r[COL_ATM]),
-            "nombre": str(r.get(COL_NAME) or r.get(COL_ATM)),
-            "promedio": float(r[PROM_COL]),
-            "tipo": str(r[COL_TIPO]),
-            "ubicacion": str(r[COL_UBIC]),
-            "departamento": str(r[COL_DEPT]),
-            "provincia": str(r[COL_PROV]),
-            "distrito": str(r[COL_DIST]),
-            "direccion": get_address(r[COL_LAT], r[COL_LON]),
-        })
+        nombre = ""
+        if COL_NAME and COL_NAME in r.index:
+            nombre = str(r.get(COL_NAME, "")).strip()
+        if not nombre:
+            nombre = str(r.get(COL_ATM, ""))
+
+        lat_v = float(r[COL_LAT])
+        lon_v = float(r[COL_LON])
+
+        puntos.append(
+            {
+                "lat": lat_v,
+                "lon": lon_v,
+                "atm": str(r.get(COL_ATM, "")),
+                "nombre": nombre,
+                "promedio": float(r.get(PROM_COL, 0.0)),
+                "division": str(r.get(COL_DIV, "")),
+                "tipo": str(r.get(COL_TIPO, "")),
+                "ubicacion": str(r.get(COL_UBIC, "")),
+                "departamento": str(r.get(COL_DEPT, "")),
+                "provincia": str(r.get(COL_PROV, "")),
+                "distrito": str(r.get(COL_DIST, "")),
+                "direccion": get_address(lat_v, lon_v),
+            }
+        )
 
     return jsonify(puntos)
+
+
+# ============================================================
+# 8. TEMPLATE MAPA — VIENE EN LA PARTE 2
+# ============================================================
 
 
 TEMPLATE_MAPA = """
@@ -361,58 +467,194 @@ TEMPLATE_MAPA = """
 <head>
 <meta charset="utf-8">
 <title>Mapa BBVA — {{ tipo_mapa|upper }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
 <style>
-body{ margin:0; font-family:Arial; background:#eef4fb; }
-header{
-    background:#003366; color:white; padding:18px;
-    text-align:center; font-size:22px; font-weight:bold;
+:root{
+  --bbva-blue:#1464A5;
+  --bbva-dark:#072146;
+  --muted:#6b7a8a;
+  --card:#ffffff;
 }
-#map{ height:76vh; flex:1; border-radius:12px; }
+html,body{
+  margin:0;
+  padding:0;
+  height:100%;
+  font-family:Inter,Arial,Helvetica,sans-serif;
+  background:#eef4fb;
+}
+header{
+  background:#003366;
+  color:white;
+  height:70px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  box-shadow:0 6px 18px rgba(0,0,0,0.25);
+}
+header h1{
+  margin:0;
+  font-size:1.9rem;
+}
+.logout{
+  position:absolute;
+  right:20px;
+  background:#1464A5;
+  color:white;
+  padding:8px 16px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:600;
+}
 
-.main{ display:flex; padding:20px; gap:20px; }
+/* CONTROLES SUPERIORES */
+.topbar{
+  padding:16px 20px 8px 20px;
+}
+.controls{
+  background:white;
+  padding:12px;
+  border-radius:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.12);
+  display:flex;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+select{
+  padding:6px 10px;
+  border-radius:8px;
+  border:1px solid #d0d7e3;
+}
 
+/* LAYOUT PRINCIPAL */
+.main{
+  display:flex;
+  padding:0 20px 20px 20px;
+  gap:18px;
+}
+#map{
+  flex:1;
+  height:74vh;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+}
+
+/* PANEL LATERAL */
 .side{
-    width:330px;
+  width:330px;
 }
 .side-card{
-    background:white;
-    padding:14px;
-    border-radius:12px;
-    box-shadow:0 6px 20px rgba(0,0,0,0.12);
-    margin-bottom:12px;
+  background:white;
+  border-radius:12px;
+  padding:14px 16px;
+  box-shadow:0 6px 22px rgba(0,0,0,0.12);
+  margin-bottom:12px;
+  font-size:13px;
 }
 
-#panelATM{ display:none; }
+/* PANEL ATM — AGRANDADO */
+.side-card-atm{
+  font-family:"Consolas","Fira Code",monospace;
+  white-space:pre-line;
+  line-height:1.45;
+  border-left:6px solid var(--bbva-blue);
+  padding:18px 16px;
+  font-size:14px;
+  background:white;
+  box-shadow:0 8px 26px rgba(0,0,0,0.22);
+  border-radius:12px;
+}
+.side-card-atm h3{
+  margin:0 0 10px 0;
+  font-size:16px;
+}
+.hidden{ display:none; }
+
+/* ICONOS */
+.icon-bank div{ font-size:30px; }
+.icon-isla div{ font-size:30px; color:deepskyblue; }
+.icon-round div{
+  width:14px; height:14px;
+  border-radius:50%; border:2px solid white;
+}
 
 </style>
 </head>
 
 <body>
 
-<header>Mapa BBVA — {{ tipo_mapa|upper }}</header>
+<header>
+  <h1>Mapa BBVA — {{ tipo_mapa|upper }}</h1>
+  <a href="/logout" class="logout">Cerrar sesión</a>
+</header>
+
+<div class="topbar">
+  <div class="controls">
+    <label>Departamento:
+      <select id="selDepartamento">
+        <option value="">-- Todos --</option>
+        {% for d in departamentos %}
+        <option value="{{d}}">{{d}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Provincia:
+      <select id="selProvincia"><option value="">-- Todas --</option></select>
+    </label>
+
+    <label>Distrito:
+      <select id="selDistrito"><option value="">-- Todos --</option></select>
+    </label>
+
+    <label>División:
+      <select id="selDivision">
+        <option value="">-- Todas --</option>
+        {% for dv in divisiones %}
+        <option value="{{dv}}">{{dv}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label><input type="checkbox" id="chkHeat" checked> Heatmap</label>
+
+    <div style="flex:1"></div>
+
+    <div style="font-size:13px; color:#6b7a8a">
+      Mostrando <span id="infoCount">--</span> ATMs
+    </div>
+  </div>
+</div>
 
 <div class="main">
-
   <div id="map"></div>
 
   <div class="side">
 
+    <!-- Panel Resumen -->
     <div id="panelResumen" class="side-card">
-        <h3>Resumen</h3>
-        Total: <span id="resTotal">0</span><br>
-        Dispensador: <span id="resDisp">0</span><br>
-        Monedero: <span id="resMon">0</span><br>
-        Reciclador: <span id="resRec">0</span><br>
+      <div class="side-title" id="panelResumenTitulo">Resumen</div>
+      <b>Promedio total:</b> <span id="resPromedio">0</span>
+      <br><br>
+      <b id="resTituloBloque">ATMs:</b>
+      <div>Total: <span id="resTotal">0</span></div>
+      <div>Dispensador: <span id="resDisp">0</span></div>
+      <div>Monedero: <span id="resMon">0</span></div>
+      <div>Reciclador: <span id="resRec">0</span></div>
     </div>
 
-    <div id="panelATM" class="side-card">
-        <h3>Panel del ATM</h3>
-        <pre id="atmDetalle"></pre>
-        <button onclick="volver()">VOLVER</button>
+    <!-- Panel ATM (Grande) -->
+    <div id="panelATM" class="side-card-atm hidden">
+      <h3>Panel del ATM seleccionado</h3>
+      <div id="atmDetalle"></div>
+      <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
 
   </div>
@@ -420,69 +662,101 @@ header{
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
 
-const map = L.map('map').setView([{{ initial_center[0] }}, {{ initial_center[1] }}], {{ initial_zoom }});
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const TIPO_MAPA = "{{ tipo_mapa }}";
+const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
+const INITIAL_ZOOM   = {{ initial_zoom }};
 
-const markers = L.markerClusterGroup();
+const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
+
+const markers = L.markerClusterGroup({chunkedLoading:true});
+const heat    = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
+heat.addTo(map);
 
-function volver(){
-    document.getElementById("panelATM").style.display = "none";
-    document.getElementById("panelResumen").style.display = "block";
-}
+const panelResumen = document.getElementById("panelResumen");
+const panelATM     = document.getElementById("panelATM");
+const atmDetalle   = document.getElementById("atmDetalle");
+const btnVolver    = document.getElementById("btnVolver");
 
-function showATM(pt){
-    const t = `
+/* Mostrar panel ATM */
+function showATMPanel(pt){
+  const texto = `
 ATM ${pt.atm}
 
 Nombre: ${pt.nombre}
 Dirección: ${pt.direccion}
+División: ${pt.division}
 Tipo: ${pt.tipo}
 Ubicación: ${pt.ubicacion}
 
-Dpto/Prov/Dist:
+Ubicación administrativa:
 ${pt.departamento} / ${pt.provincia} / ${pt.distrito}
 
 Promedio: ${pt.promedio}
-`;
-    document.getElementById("atmDetalle").textContent = t;
-    document.getElementById("panelResumen").style.display = "none";
-    document.getElementById("panelATM").style.display = "block";
+  `;
+
+  atmDetalle.textContent = texto;
+
+  panelResumen.classList.add("hidden");
+  panelATM.classList.remove("hidden");
 }
 
-async function load(){
-    const res = await fetch("/api/points?tipo={{ tipo_mapa }}");
-    const data = await res.json();
+/* Botón VOLVER */
+btnVolver.onclick = ()=>{
+  panelATM.classList.add("hidden");
+  panelResumen.classList.remove("hidden");
+};
 
-    let cTotal=0, cDisp=0, cMon=0, cRec=0;
-
-    data.forEach(pt => {
-        cTotal++;
-
-        const tipo = pt.tipo.toUpperCase();
-        if(tipo.includes("DISP")) cDisp++;
-        if(tipo.includes("MON"))  cMon++;
-        if(tipo.includes("REC"))  cRec++;
-
-        const icon = L.divIcon({html:"<div style='font-size:28px'>🏧</div>"});
-
-        const m = L.marker([pt.lat, pt.lon], {icon});
-        m.on("click", ()=> showATM(pt));
-        markers.addLayer(m);
-    });
-
-    document.getElementById("resTotal").textContent = cTotal;
-    document.getElementById("resDisp").textContent  = cDisp;
-    document.getElementById("resMon").textContent   = cMon;
-    document.getElementById("resRec").textContent   = cRec;
+/* Crear íconos */
+function getIcon(pt){
+  const u = (pt.ubicacion || "").toUpperCase();
+  if(u.includes("OFICINA")){
+    return L.divIcon({className:"icon-bank", html:"<div>🏦</div>", iconSize:[32,32], iconAnchor:[16,16]});
+  }
+  if(u.includes("ISLA")){
+    return L.divIcon({className:"icon-isla", html:"<div>🌐</div>", iconSize:[32,32], iconAnchor:[16,16]});
+  }
+  if(u.includes("AGENTE")){
+    return L.divIcon({className:"icon-bank", html:"<div>🧍</div>", iconSize:[32,32], iconAnchor:[16,16]});
+  }
+  const color = (pt.promedio||0)>=4 ? "red":"green";
+  return L.divIcon({className:"icon-round", html:`<div style='background:${color}'></div>`, iconSize:[14,14], iconAnchor:[7,7]});
 }
 
-load();
+/* Renderizar puntos */
+async function fetchPoints(){
+  const res  = await fetch(`/api/points?tipo=${TIPO_MAPA}`);
+  const data = await res.json();
+
+  markers.clearLayers();
+  heat.setLatLngs([]);
+
+  data.forEach(pt=>{
+    const icon = getIcon(pt);
+
+    /* SIN POPUP */
+    const m = L.marker([pt.lat, pt.lon], {icon});
+
+    /* Click abre panel derecho */
+    m.on("click",()=> showATMPanel(pt));
+
+    markers.addLayer(m);
+
+    heat.addLatLng([pt.lat, pt.lon, Math.max(1,pt.promedio||1)]);
+  });
+
+  map.addLayer(markers);
+}
+
+fetchPoints();
 
 </script>
+
 </body>
 </html>
 """
