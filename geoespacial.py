@@ -341,7 +341,7 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
    
     <div class="card" id="infoBox">
       <div style="font-weight:600; margin-bottom:6px;">Resumen</div>
-      <div class="muted">Promedio de transacciones(Jun-Ago) 2025 :</div>
+      <div class="muted">Promedio de transacciones(Set-Nov) 2025 :</div>
       <div id="promTotal" style="font-size:18px; font-weight:700; color:var(--bbva-blue);">0.00</div>
     </div>
 
