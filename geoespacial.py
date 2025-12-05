@@ -165,6 +165,14 @@ SELECTOR_TEMPLATE = """
 def selector():
     return render_template_string(SELECTOR_TEMPLATE)
 
+# ============================================
+# RUTA PRINCIPAL "/" → REDIRIGE A /selector
+# ============================================
+@app.route("/")
+def home():
+    if session.get("user") == APP_USER:
+        return redirect(url_for("selector"))
+    return redirect(url_for("login"))
 
 # -------------------------
 # RUTA DEL MAPA POR CAPA
