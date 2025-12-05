@@ -460,6 +460,9 @@ def api_points():
 # 8. TEMPLATE MAPA — VIENE EN LA PARTE 2
 # ============================================================
 
+
+
+
 TEMPLATE_MAPA = """
 <!doctype html>
 <html>
@@ -473,20 +476,20 @@ TEMPLATE_MAPA = """
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
 <style>
-:root{
+:root {
   --bbva-blue:#1464A5;
   --bbva-dark:#072146;
   --muted:#6b7a8a;
   --card:#ffffff;
 }
-html,body{
-  margin:0;
-  padding:0;
-  height:100%;
-  font-family:Inter,Arial,Helvetica,sans-serif;
+html, body {
+  margin:0; padding:0; height:100%;
+  font-family:Inter,Arial,sans-serif;
   background:#eef4fb;
 }
-header{
+
+/* HEADER */
+header {
   background:#003366;
   color:white;
   height:70px;
@@ -496,11 +499,10 @@ header{
   position:relative;
   box-shadow:0 6px 18px rgba(0,0,0,0.25);
 }
-header h1{
-  margin:0;
-  font-size:1.9rem;
-}
-.logout{
+header h1 { margin:0; font-size:1.9rem; }
+
+/* BOTÓN CERRAR SESIÓN */
+.logout {
   position:absolute;
   right:20px;
   background:#1464A5;
@@ -511,11 +513,9 @@ header h1{
   font-weight:600;
 }
 
-/* CONTROLES SUPERIORES */
-.topbar{
-  padding:16px 20px 8px 20px;
-}
-.controls{
+/* CONTROLES */
+.topbar { padding:16px 20px 8px 20px; }
+.controls {
   background:white;
   padding:12px;
   border-radius:12px;
@@ -525,29 +525,19 @@ header h1{
   align-items:center;
   flex-wrap:wrap;
 }
-.controls label{
-  font-size:13px;
-  color:var(--muted);
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-select{
-  padding:6px 10px;
+select {
+  padding:7px 10px;
   border-radius:8px;
   border:1px solid #d0d7e3;
 }
-input[type="checkbox"]{
-  transform:scale(1.05);
-}
 
-/* LAYOUT PRINCIPAL */
-.main{
+/* LAYOUT */
+.main {
   display:flex;
-  padding:0 20px 20px 20px;
+  padding:0 20px 20px;
   gap:18px;
 }
-#map{
+#map {
   flex:1;
   height:74vh;
   border-radius:12px;
@@ -555,96 +545,66 @@ input[type="checkbox"]{
   box-shadow:0 8px 24px rgba(0,0,0,0.18);
 }
 
-/* SIDE PANEL */
-.side{
-  width:330px;
-}
-.side-card{
+/* PANEL DERECHO */
+.side { width:380px; }
+
+/* PANEL ESTÁTICO */
+.side-card {
   background:white;
   border-radius:12px;
-  padding:14px 16px;
+  padding:18px 20px;
   box-shadow:0 6px 22px rgba(0,0,0,0.12);
   margin-bottom:12px;
-  font-size:13px;
-}
-.side-title{
-  font-weight:700;
-  margin-bottom:4px;
-}
-.muted{
-  color:var(--muted);
-  font-size:12px;
+  font-size:14px;
 }
 
-/* Panel ATM seleccionado */
-.side-card-atm{
+/* PANEL ATM SELECCIONADO (grande) */
+.side-card-atm {
+  background:white;
+  border-radius:12px;
+  padding:24px;
+  box-shadow:0 10px 28px rgba(0,0,0,0.20);
+  margin-bottom:12px;
   font-family:"Consolas","Fira Code",monospace;
   white-space:pre-line;
-  line-height:1.35;
-  border-left:4px solid var(--bbva-blue);
-  position:relative;
+  font-size:15px;
+  line-height:1.45;
+  border-left:6px solid var(--bbva-blue);
 }
-.side-card-atm h3{
-  margin:0 0 6px 0;
+.side-card-atm h3 {
+  margin:0 0 14px 0;
+  font-size:18px;
+  font-weight:800;
+}
+
+/* BOTÓN VOLVER */
+.btn-small {
+  margin-top:14px;
+  padding:10px 18px;
   font-size:14px;
-}
-.btn-small{
-  display:inline-block;
-  margin-top:8px;
-  padding:4px 10px;
   border-radius:6px;
-  border:none;
   background:var(--bbva-blue);
   color:white;
-  font-size:12px;
-  cursor:pointer;
+  border:none;
+  font-weight:600;
 }
 
-/* Glow suave cuando hay ATM seleccionado */
-@keyframes panelGlow{
-  0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
-  50%{box-shadow:0 0 18px rgba(20,100,165,0.55);}
-  100%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
+.hidden { display:none; }
+
+/* ANIMACIÓN */
+@keyframes panelGlow {
+  0%{box-shadow:0 0 0 rgba(20,100,165,0);}
+  50%{box-shadow:0 0 22px rgba(20,100,165,0.65);}
+  100%{box-shadow:0 0 0 rgba(20,100,165,0);}
 }
-.side-card-atm.glow{
-  animation:panelGlow 2.2s ease-in-out infinite;
+.side-card-atm.glow {
+  animation:panelGlow 2.4s ease-in-out infinite;
 }
 
-/* Ocultar */
-.hidden{ display:none; }
-
-/* Popup Leaflet */
-.leaflet-popup-content-wrapper{
-  border-radius:12px;
-  box-shadow:0 6px 20px rgba(0,0,0,0.25);
-}
-.popup-title{
-  font-size:14px;
-  font-weight:bold;
-  color:var(--bbva-blue);
-  margin-bottom:4px;
-}
-.popup-row{
-  margin:2px 0;
-  font-size:12px;
-}
-
-/* Iconos personalizados */
-.icon-bank div{
-  font-size:30px;
-}
-.icon-isla div{
-  font-size:30px;
-  color:deepskyblue;
-}
-.icon-round div{
-  width:14px;
-  height:14px;
-  border-radius:50%;
-  border:2px solid white;
-}
 </style>
 </head>
+
+
 
 <body>
 
@@ -653,8 +613,10 @@ input[type="checkbox"]{
   <a href="/logout" class="logout">Cerrar sesión</a>
 </header>
 
+<!-- CONTROLES -->
 <div class="topbar">
   <div class="controls">
+
     <label>Departamento:
       <select id="selDepartamento">
         <option value="">-- Todos --</option>
@@ -694,27 +656,36 @@ input[type="checkbox"]{
     <div style="font-size:13px; color:var(--muted);">
       Mostrando <span id="infoCount">--</span> ATMs
     </div>
+
   </div>
 </div>
 
+
+
+<!-- MAIN -->
 <div class="main">
+
+  <!-- MAPA -->
   <div id="map"></div>
 
+  <!-- PANEL DERECHO -->
   <div class="side">
-    <!-- PANEL RESUMEN -->
+
+    <!-- PANEL ESTÁTICO -->
     <div id="panelResumen" class="side-card">
-      <div class="side-title" id="panelResumenTitulo">Resumen</div>
-      <div class="muted" id="panelResumenSub">Promedio total:</div>
-      <div style="margin-top:4px;">
-        <b>Promedio total:</b> <span id="resPromedio">0</span>
+      <div style="font-weight:700;">Resumen — {{ tipo_mapa|capitalize }}</div>
+      <b>Promedio total:</b> <span id="resPromedio">0</span>
+
+      <div style="margin-top:12px; font-size:15px; font-weight:700;">
+        ATMs en {{ tipo_mapa }}
       </div>
-      <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs en oficinas</div>
-      <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
+
+      <div class="muted">Total: <span id="resTotal">0</span></div>
       <div class="muted">Dispensador: <span id="resDisp">0</span></div>
       <div class="muted">Monedero: <span id="resMon">0</span></div>
       <div class="muted">Reciclador: <span id="resRec">0</span></div>
 
-      <div style="margin-top:10px; font-weight:600;">Leyenda</div>
+      <div style="margin-top:14px; font-weight:600;">Leyenda</div>
       <div class="muted">
         <div>🔴 ATM ≥ 4</div>
         <div>🟢 ATM ≤ 3</div>
@@ -724,151 +695,66 @@ input[type="checkbox"]{
       </div>
     </div>
 
+
+
     <!-- PANEL ATM SELECCIONADO -->
-    <div id="panelATM" class="side-card side-card-atm hidden">
+    <div id="panelATM" class="side-card-atm hidden">
       <h3>Panel del ATM seleccionado</h3>
-      <div id="atmDetalle" style="font-size:12px; margin-top:4px;"></div>
+      <div id="atmDetalle"></div>
       <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
+
   </div>
 </div>
 
+
+<!-- SCRIPTS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
-const DIST_BY_PROV = {{ dist_by_prov|tojson }};
-const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
-const DIV_BY_PROV  = {{ div_by_prov|tojson }};
-const DIV_BY_DIST  = {{ div_by_dist|tojson }};
-const TIPO_MAPA    = "{{ tipo_mapa }}";
+const DIST_BY_PROV = {{ distritos_by_prov|tojson }};
+const TIPO_MAPA = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-const INITIAL_ZOOM   = {{ initial_zoom }};
 
-const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom:19 }).addTo(map);
+const map = L.map('map').setView(INITIAL_CENTER, {{ initial_zoom }});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19
+}).addTo(map);
 
-const markers = L.markerClusterGroup({chunkedLoading:true});
-const heat    = L.heatLayer([], {radius:28, blur:22});
+const markers = L.markerClusterGroup();
+const heat = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
 heat.addTo(map);
 
-// Combos
-const selDep  = document.getElementById("selDepartamento");
-const selProv = document.getElementById("selProvincia");
-const selDist = document.getElementById("selDistrito");
-const selDiv  = document.getElementById("selDivision");
-const chkHeat = document.getElementById("chkHeat");
-const infoBox = document.getElementById("infoCount");
-
-// Panel resumen
-const panelResumen      = document.getElementById("panelResumen");
-const panelResumenTitulo= document.getElementById("panelResumenTitulo");
-const panelResumenSub   = document.getElementById("panelResumenSub");
-const resPromedio       = document.getElementById("resPromedio");
-const resTituloBloque   = document.getElementById("resTituloBloque");
-const resTotal          = document.getElementById("resTotal");
-const resDisp           = document.getElementById("resDisp");
-const resMon            = document.getElementById("resMon");
-const resRec            = document.getElementById("resRec");
-
-// Panel ATM
-const panelATM   = document.getElementById("panelATM");
-const atmDetalle = document.getElementById("atmDetalle");
-const btnVolver  = document.getElementById("btnVolver");
-
-// Títulos según capa
-if(TIPO_MAPA === "oficinas"){
-  panelResumenTitulo.textContent = "Resumen — Oficinas";
-  resTituloBloque.textContent    = "ATMs en oficinas";
-} else if(TIPO_MAPA === "islas"){
-  panelResumenTitulo.textContent = "Resumen — Islas";
-  resTituloBloque.textContent    = "ATMs en islas";
-} else if(TIPO_MAPA === "agentes"){
-  panelResumenTitulo.textContent = "Resumen — Agentes";
-  resTituloBloque.textContent    = "ATMs en agentes";
-}
-
-// ------------------- combos dependientes --------------------
-function updateProvincias(){
-  let d = selDep.value;
-  selProv.innerHTML = '<option value="">-- Todas --</option>';
-  if(d && PROV_BY_DEPT[d]){
-    PROV_BY_DEPT[d].forEach(p => {
-      selProv.innerHTML += `<option value="${p}">${p}</option>`;
-    });
-  }
-  updateDistritos();
-}
-
-function updateDistritos(){
-  let p = selProv.value;
-  selDist.innerHTML = '<option value="">-- Todos --</option>';
-  if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(x => {
-      selDist.innerHTML += `<option value="${x}">${x}</option>`;
-    });
-  }
-}
-
-selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
-selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
-selDist.onchange = ()=> fetchPoints();
-selDiv.onchange  = ()=> fetchPoints();
-chkHeat.onchange = ()=> fetchPoints();
-
-btnVolver.onclick = ()=>{
-  panelATM.classList.add("hidden");
-  panelATM.classList.remove("glow");
-  panelResumen.classList.remove("hidden");
-};
-
-// ------------------- Iconos ----------------------
+// ------- ICONO SEGÚN UBICACIÓN -------
 function getIcon(pt){
-  const ubic = (pt.ubicacion || "").toUpperCase();
-  if(ubic.includes("OFICINA")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🏦</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
-  }
-  if(ubic.includes("ISLA")){
-    return L.divIcon({
-      className:"icon-isla",
-      html:"<div>🌐</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
-  }
-  if(ubic.includes("AGENTE")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🧍</div>",
-      iconSize:[30,30],
-      iconAnchor:[15,15]
-    });
-  }
-  const color = (pt.promedio || 0) >= 4 ? "red" : "green";
-  return L.divIcon({
-    className:"icon-round",
-    html:`<div style="background:${color};"></div>`,
-    iconSize:[14,14],
-    iconAnchor:[7,7]
-  });
+  const ub = (pt.ubicacion||"").toUpperCase();
+  if(ub.includes("OFICINA"))
+    return L.divIcon({html:"<div style='font-size:28px'>🏦</div>", iconSize:[32,32]});
+  if(ub.includes("ISLA"))
+    return L.divIcon({html:"<div style='font-size:28px'>🌐</div>", iconSize:[32,32]});
+  if(ub.includes("AGENTE"))
+    return L.divIcon({html:"<div style='font-size:28px'>🧍</div>", iconSize:[32,32]});
+
+  const color = (pt.promedio||0)>=4 ? "red" : "green";
+  return L.divIcon({html:`<div style='width:16px;height:16px;border-radius:50%;background:${color}'></div>`});
 }
 
-// ---------------- Panel ATM seleccionado ----------
-function showATMPanel(pt){
-  const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
 
-  const texto = `
+
+// ---------- PANEL DERECHO ----------
+const panelResumen = document.getElementById("panelResumen");
+const panelATM = document.getElementById("panelATM");
+const atmDetalle = document.getElementById("atmDetalle");
+const btnVolver = document.getElementById("btnVolver");
+
+function showATMPanel(pt){
+  const txt = `
 _____________________
- ATM ${pt.atm}
+  ATM ${pt.atm}
 _____________________
 
 • Nombre: ${pt.nombre}
@@ -878,107 +764,70 @@ _____________________
 • Ubicación: ${pt.ubicacion}
 
 • Dpto/Prov/Dist:
-  ${lineaUbic}
+  ${pt.departamento} / ${pt.provincia} / ${pt.distrito}
 
 _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
 
-  atmDetalle.textContent = texto;
+  atmDetalle.textContent = txt;
+
   panelResumen.classList.add("hidden");
   panelATM.classList.remove("hidden");
   panelATM.classList.add("glow");
 }
 
-// ------------------- FETCH + RENDER ----------------
-async function fetchPoints(){
-  const d  = selDep.value;
-  const p  = selProv.value;
-  const di = selDist.value;
-  const dv = selDiv.value;
-
-  const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
-  infoBox.textContent = "...";
-
-  // Siempre, al cambiar filtros, volvemos al panel resumen
+btnVolver.onclick = ()=>{
   panelATM.classList.add("hidden");
   panelATM.classList.remove("glow");
   panelResumen.classList.remove("hidden");
+};
 
-  const res = await fetch(`/api/points?${qs}`);
-  const data = await res.json();
 
-  infoBox.textContent = data.length;
+
+async function fetchPoints(){
   markers.clearLayers();
   heat.setLatLngs([]);
 
-  let heatPts = [];
-  let bounds  = [];
-  let sumProm = 0;
+  const q = `tipo=${TIPO_MAPA}&departamento=${selDepartamento.value}&provincia=${selProvincia.value}&distrito=${selDistrito.value}&division=${selDivision.value}`;
+  const res = await fetch('/api/points?'+q);
+  const data = await res.json();
 
-  let cTotal = 0, cDisp = 0, cMon = 0, cRec = 0;
+  let sumProm = 0, cTotal = 0, cDisp = 0, cMon = 0, cRec = 0;
 
-  data.forEach(pt => {
+  data.forEach(pt=>{
+    sumProm += pt.promedio || 0;
     cTotal++;
-    sumProm += (pt.promedio || 0);
 
-    const tipoUpper = (pt.tipo || "").toString().toUpperCase();
-    if(tipoUpper.includes("DISPENSADOR")) cDisp++;
-    if(tipoUpper.includes("MONEDERO"))    cMon++;
-    if(tipoUpper.includes("RECICLADOR"))  cRec++;
+    const tipo = (pt.tipo||"").toUpperCase();
+    if(tipo.includes("DISP")) cDisp++;
+    if(tipo.includes("MON")) cMon++;
+    if(tipo.includes("REC")) cRec++;
 
-    const icon = getIcon(pt);
-    const popup = `
-      <div class="popup-title">${pt.nombre}</div>
-      <div class="popup-row"><b>ATM:</b> ${pt.atm}</div>
-      <div class="popup-row"><b>Dirección:</b> ${pt.direccion}</div>
-      <div class="popup-row"><b>División:</b> ${pt.division}</div>
-      <div class="popup-row"><b>Tipo:</b> ${pt.tipo}</div>
-      <div class="popup-row"><b>Ubicación:</b> ${pt.ubicacion}</div>
-      <div class="popup-row"><b>Depto/Prov/Dist:</b> ${pt.departamento} / ${pt.provincia} / ${pt.distrito}</div>
-      <div class="popup-row"><b>Promedio:</b> ${pt.promedio}</div>
-    `;
-    const m = L.marker([pt.lat, pt.lon], {icon}).bindPopup(popup);
-    m.on("click", () => showATMPanel(pt));
+    const m = L.marker([pt.lat,pt.lon], {icon:getIcon(pt)});
+    m.on("click",()=> showATMPanel(pt));
     markers.addLayer(m);
 
-    heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
-    bounds.push([pt.lat, pt.lon]);
+    heat.addLatLng([pt.lat, pt.lon, (pt.promedio||0)/10000]);
   });
 
-  heat.setLatLngs(heatPts);
-
-  if(bounds.length === 1){
-    map.setView(bounds[0], 16);
-  }else if(bounds.length > 1){
-    map.fitBounds(bounds, {padding:[20,20]});
-  }else{
-    map.setView(INITIAL_CENTER, INITIAL_ZOOM);
-  }
-
-  if(chkHeat.checked){
-    if(!map.hasLayer(heat)) heat.addTo(map);
-  }else{
-    if(map.hasLayer(heat)) map.removeLayer(heat);
-  }
-
-  // Actualizar resumen
-  if(cTotal > 0){
-    const prom = Math.round(sumProm);
-    resPromedio.textContent = prom.toString();
-  }else{
-    resPromedio.textContent = "0";
-  }
-  resTotal.textContent = cTotal.toString();
-  resDisp.textContent  = cDisp.toString();
-  resMon.textContent   = cMon.toString();
-  resRec.textContent   = cRec.toString();
+  document.getElementById("infoCount").textContent = cTotal;
+  document.getElementById("resPromedio").textContent = sumProm;
+  document.getElementById("resTotal").textContent = cTotal;
+  document.getElementById("resDisp").textContent = cDisp;
+  document.getElementById("resMon").textContent = cMon;
+  document.getElementById("resRec").textContent = cRec;
 }
 
-// Inicial
-updateProvincias();
+selDepartamento.onchange = fetchPoints;
+selProvincia.onchange = fetchPoints;
+selDistrito.onchange = fetchPoints;
+selDivision.onchange = fetchPoints;
+chkHeat.onchange = ()=> chkHeat.checked ? heat.addTo(map) : map.removeLayer(heat);
+
 fetchPoints();
+
 </script>
 
 </body>
