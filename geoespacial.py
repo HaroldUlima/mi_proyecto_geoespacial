@@ -129,6 +129,7 @@ def login():
         return render_template_string(LOGIN_TEMPLATE, error="Credenciales incorrectas")
     return render_template_string(LOGIN_TEMPLATE)
 
+
 # ---- SELECTOR DE CAPAS ----
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -189,7 +190,6 @@ def mapa_tipo(tipo):
         initial_zoom=6
     )
 
-
 # ============================================
 #   PARTE 2 — TEMPLATE DEL MAPA
 # ============================================
@@ -239,10 +239,6 @@ body{margin:0;font-family:Arial;background:#f3f6fb;}
 </select>
 </label>
 
-<label style="margin-left:20px;">
-<input type="checkbox" id="chkHeat" checked> Heatmap
-</label>
-
 <span style="margin-left:30px;font-weight:bold;">Mostrando <span id="infoCount">--</span> ATMs</span>
 
 </div>
@@ -252,9 +248,6 @@ body{margin:0;font-family:Arial;background:#f3f6fb;}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// ======================
-// DROPDOWNS
-// ======================
 const PROVINCIAS_ALL   = {{ provincias_all|tojson }};
 const DISTRITOS_BY_PROV = {{ distritos_by_prov|tojson }};
 const DIST_BY_DEPT      = {{ dist_by_dept|tojson }};
@@ -282,7 +275,8 @@ async function fetchAndRender(){
     markers.clearLayers();
 
     data.forEach(p=>{
-        let iconHtml = p.ubicacion.includes("OFICINA") ? "🏦" : (p.ubicacion.includes("ISLA") ? "🌐" : "•");
+        let iconHtml = p.ubicacion.includes("OFICINA") ? "🏦" : 
+                       (p.ubicacion.includes("ISLA") ? "🌐" : "•");
 
         let marker = L.marker([p.lat, p.lon]).bindPopup(`
             <b>${p.nombre}</b><br>
@@ -309,52 +303,3 @@ fetchAndRender();
 </body>
 </html>
 """
-
-# ==========================
-# API de puntos por capa
-# ==========================
-@app.route("/api/points")
-@login_required
-def api_points():
-    tipo = request.args.get("tipo")
-
-    departamento = request.args.get("departamento","").upper()
-    provincia    = request.args.get("provincia","").upper()
-    distrito     = request.args.get("distrito","").upper()
-    division     = request.args.get("division","").upper()
-
-    df_f = df.copy()
-
-    # Filtrar capa
-    if tipo=="oficinas":
-        df_f = df_f[df_f[COL_UBIC].str.contains("OFICINA", case=False)]
-    elif tipo=="islas":
-        df_f = df_f[df_f[COL_UBIC].str.contains("ISLA", case=False)]
-    elif tipo=="agentes":
-        df_f = df_f.iloc[0:0]  # vacío por ahora
-
-    # Filtros generales
-    if departamento:
-        df_f = df_f[df_f[COL_DEPT]==departamento]
-    if provincia:
-        df_f = df_f[df_f[COL_PROV]==provincia]
-    if distrito:
-        df_f = df_f[df_f[COL_DIST]==distrito]
-    if division:
-        df_f = df_f[df_f[COL_DIV]==division]
-
-    pts=[]
-    for _,r in df_f.iterrows():
-        pts.append({
-            "lat":float(r[COL_LAT]),
-            "lon":float(r[COL_LON]),
-            "atm":str(r[COL_ATM]),
-            "nombre":str(r.get(COL_NAME,r[COL_ATM])),
-            "division":str(r[COL_DIV]),
-            "tipo":str(r[COL_TIPO]),
-            "ubicacion":str(r[COL_UBIC]),
-            "direccion":get_address(r[COL_LAT], r[COL_LON])
-        })
-
-    return jsonify(pts)
-
