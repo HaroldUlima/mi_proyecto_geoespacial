@@ -7,9 +7,6 @@ import pandas as pd
 import numpy as np
 from flask import Flask, render_template_string, request, jsonify
 
-
-
-
 # -------------------------
 # Cache de direcciones precalculadas
 # -------------------------
@@ -28,9 +25,6 @@ def get_address(lat, lon):
         key = f"{lat},{lon}"
     return address_cache.get(key, "Dirección no encontrada")
 
-# -------------------------
-# Buscar archivo Excel (busca en /mnt/data y en Downloads)
-# -------------------------
 # -------------------------
 # Usar archivo Excel desde carpeta data/
 # -------------------------
@@ -119,6 +113,9 @@ DEPARTAMENTOS = sorted(df[COL_DEPT].dropna().astype(str).unique().tolist())
 PROVINCIAS_ALL = df.groupby(COL_DEPT)[COL_PROV].apply(lambda s: sorted(s.dropna().astype(str).unique().tolist())).to_dict()
 DISTRITOS_BY_PROV = df.groupby(COL_PROV)[COL_DIST].apply(lambda s: sorted(s.dropna().astype(str).unique().tolist())).to_dict()
 DIST_BY_DEPT = df.groupby(COL_DEPT)[COL_DIST].apply(lambda s: sorted(s.dropna().astype(str).unique().tolist())).to_dict()
+
+# 🔹 Lista de divisiones para el filtro nuevo
+DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique().tolist())
 
 # -------------------------
 # Flask
@@ -258,9 +255,6 @@ def logout():
     resp.set_cookie("session", "", expires=0)
     return resp
 
-
-
-
 # -------------------------
 # Template HTML/JS (estética tipo banco — BBVA)
 # -------------------------
@@ -324,10 +318,37 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
 
 <div class="topbar">
   <div class="controls">
-    <label>Departamento: <select id="selDepartamento"><option value="">-- Todos --</option>{% for d in departamentos %}<option value="{{d}}">{{d}}</option>{% endfor %}</select> </label>
-    <label>Provincia: <select id="selProvincia"><option value="">-- Todas --</option></select> </label>
-    <label>Distrito: <select id="selDistrito"><option value="">-- Todos --</option></select> </label>
-    <label style="margin-left:10px;"><input type="checkbox" id="chkHeat" checked> Mostrar Heatmap</label>
+    <label>Departamento: 
+      <select id="selDepartamento">
+        <option value="">-- Todos --</option>
+        {% for d in departamentos %}
+          <option value="{{d}}">{{d}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Provincia: 
+      <select id="selProvincia">
+        <option value="">-- Todas --</option>
+      </select>
+    </label>
+    <label>Distrito: 
+      <select id="selDistrito">
+        <option value="">-- Todos --</option>
+      </select>
+    </label>
+    <!-- 🔹 NUEVO: filtro de División -->
+    <label>División: 
+      <select id="selDivision">
+        <option value="">-- Todas --</option>
+        {% for d in divisiones %}
+          <option value="{{d}}">{{d}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label style="margin-left:10px;">
+      <input type="checkbox" id="chkHeat" checked> Mostrar Heatmap
+    </label>
     <div style="flex:1"></div>
     <div class="muted">Mostrando <span id="infoCount">--</span> ATMs</div>
   </div>
@@ -337,14 +358,11 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
   <div id="map"></div>
 
   <div class="side">
-
-   
     <div class="card" id="infoBox">
       <div style="font-weight:600; margin-bottom:6px;">Resumen</div>
       <div class="muted">Promedio de transacciones(Set-Nov) 2025 :</div>
       <div id="promTotal" style="font-size:18px; font-weight:700; color:var(--bbva-blue);">0.00</div>
     </div>
-
 
     <!-- Oficinas -->
     <div class="card" id="countBox">
@@ -361,7 +379,6 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
       <div class="muted" style="margin-top:6px;">Reciclador:</div>
       <div id="oficinaRec" style="font-size:16px; font-weight:700; color:var(--bbva-blue);">0</div>
     </div>
-
 
     <!-- Islas -->
     <div class="card" id="islaBox">
@@ -393,7 +410,7 @@ input[type=checkbox] { transform:scale(1.05); margin-right:6px; }
 
 <!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -404,7 +421,9 @@ const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM = {{ initial_zoom }};
 
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
 
 const markersLayer = L.markerClusterGroup({ chunkedLoading: true });
 const heatLayer = L.heatLayer([], {radius:25, blur:20, maxZoom:17});
@@ -414,6 +433,7 @@ heatLayer.addTo(map);
 const selDept = document.getElementById('selDepartamento');
 const selProv = document.getElementById('selProvincia');
 const selDist = document.getElementById('selDistrito');
+const selDiv  = document.getElementById('selDivision');  // 🔹 nuevo filtro
 const chkHeat = document.getElementById('chkHeat');
 const infoSpan = document.getElementById('infoCount');
 const promTotalEl = document.getElementById('promTotal');
@@ -485,6 +505,7 @@ async function fetchAndRender(){
   if(selDept.value) params.append('departamento', selDept.value);
   if(selProv.value) params.append('provincia', selProv.value);
   if(selDist.value) params.append('distrito', selDist.value);
+  if(selDiv.value)  params.append('division', selDiv.value);   // 🔹 nuevo parámetro
 
   infoSpan.textContent='...';
   try{
@@ -504,7 +525,6 @@ async function fetchAndRender(){
     const bounds = [];
 
     data.forEach(item=>{
-      // Popup
       const popup = `<div class="popup-card">
         <div class="popup-row"><b>Nombre de Cajero:</b> ${item.nombre}</div>
         <div class="popup-row"><b>ATM:</b> ${item.atm}</div>
@@ -514,8 +534,7 @@ async function fetchAndRender(){
         <div class="popup-row"><b>Tipo:</b> ${item.tipo}</div>
         <div class="popup-row"><b>Ubicación Interna:</b> ${item.ubicacion}</div>
         <div class="popup-sep"></div>
-        <div class="popup-row"><b>Promedio Jun-Ago :</b> ${item.promedio}</div>
-        
+        <div class="popup-row"><b>Promedio Set-Nov  :</b> ${item.promedio}</div>
       </div>`;
 
       const icon = getCustomIcon(item.ubicacion, item.promedio);
@@ -525,7 +544,6 @@ async function fetchAndRender(){
       sumProm += item.promedio || 0;
       bounds.push([item.lat, item.lon]);
 
-      // Conteo oficina/isla
       const tipoUpper = (item.tipo || "").toUpperCase();
       const ubicUpper = (item.ubicacion || "").toUpperCase();
       if(ubicUpper.includes("OFICINA")){
@@ -557,7 +575,6 @@ async function fetchAndRender(){
       if(map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
     }
 
-    // Actualizar indicadores
     infoSpan.textContent = data.length.toLocaleString('en-US');
     promTotalEl.textContent = Number(sumProm).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
 
@@ -586,6 +603,7 @@ selProv.addEventListener('change', ()=>{
   fetchAndRender();
 });
 selDist.addEventListener('change', fetchAndRender);
+selDiv.addEventListener('change', fetchAndRender);  // 🔹 dispara fetch con división
 chkHeat.addEventListener('change', fetchAndRender);
 
 // Inicializar
@@ -604,14 +622,16 @@ fetchAndRender();
 @login_required
 def api_points():
     departamento = request.args.get("departamento", "").strip().upper()
-    provincia = request.args.get("provincia", "").strip().upper()
-    distrito = request.args.get("distrito", "").strip().upper()
+    provincia    = request.args.get("provincia", "").strip().upper()
+    distrito     = request.args.get("distrito", "").strip().upper()
+    division     = request.args.get("division", "").strip().upper()   # 🔹 nuevo
 
     df_filtered = df.copy()
     # Normalizar para filtros (mayúsculas)
     df_filtered[COL_DEPT] = df_filtered[COL_DEPT].astype(str).str.upper().str.strip()
     df_filtered[COL_PROV] = df_filtered[COL_PROV].astype(str).str.upper().str.strip()
     df_filtered[COL_DIST] = df_filtered[COL_DIST].astype(str).str.upper().str.strip()
+    df_filtered[COL_DIV]  = df_filtered[COL_DIV].astype(str).str.upper().str.strip()
 
     if departamento:
         df_filtered = df_filtered[df_filtered[COL_DEPT] == departamento]
@@ -619,6 +639,8 @@ def api_points():
         df_filtered = df_filtered[df_filtered[COL_PROV] == provincia]
     if distrito:
         df_filtered = df_filtered[df_filtered[COL_DIST] == distrito]
+    if division:
+        df_filtered = df_filtered[df_filtered[COL_DIV] == division]
 
     points = []
     for _, r in df_filtered.iterrows():
@@ -657,7 +679,16 @@ def api_points():
 def index():
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist() if not df.empty else [-9.19, -75.0152]
     initial_zoom = 6
-    return render_template_string(TEMPLATE, departamentos=DEPARTAMENTOS, provincias_all=PROVINCIAS_ALL, distritos_by_prov=DISTRITOS_BY_PROV, dist_by_dept=DIST_BY_DEPT, initial_center=initial_center, initial_zoom=initial_zoom )
+    return render_template_string(
+        TEMPLATE,
+        departamentos=DEPARTAMENTOS,
+        provincias_all=PROVINCIAS_ALL,
+        distritos_by_prov=DISTRITOS_BY_PROV,
+        dist_by_dept=DIST_BY_DEPT,
+        divisiones=DIVISIONES,   # 🔹 pasamos las divisiones al template
+        initial_center=initial_center,
+        initial_zoom=initial_zoom
+    )
 
 #if __name__ == "__main__":
     #app.run(host="0.0.0.0", port=5000)
