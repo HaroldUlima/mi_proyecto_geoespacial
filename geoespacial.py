@@ -19,7 +19,6 @@ from flask import (
 )
 from functools import wraps
 
-
 # ============================================================
 # 1. CACHE DE DIRECCIONES
 # ============================================================
@@ -30,14 +29,12 @@ if os.path.exists(CACHE_FILE):
 else:
     address_cache = {}
 
-
 def get_address(lat, lon):
     try:
         key = f"{float(lat):.6f},{float(lon):.6f}"
     except Exception:
         key = f"{lat},{lon}"
     return address_cache.get(key, "Dirección no encontrada")
-
 
 # ============================================================
 # 2. CARGAR EXCEL PRINCIPAL (OFICINAS + ISLAS + AGENTES)
@@ -59,9 +56,7 @@ def normalize_col(s):
     s = re.sub(r"[^A-Z0-9 ]+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
-
 norm_map = {normalize_col(c): c for c in raw.columns}
-
 
 def find_col(keys):
     for norm, orig in norm_map.items():
@@ -69,7 +64,6 @@ def find_col(keys):
             if k in norm:
                 return orig
     return None
-
 
 # ---------------- Detectar columnas principales ----------------
 COL_ATM = find_col(["COD_ATM", "ATM"]) or "ATM"
@@ -154,9 +148,8 @@ DIV_BY_DIST = (
 
 DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique())
 
-
 # ============================================================
-# 4. FLASK + LOGIN (con imagen bbva.png)
+# 4. FLASK + LOGIN
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
@@ -167,7 +160,6 @@ APP_PASS = os.getenv("APP_PASSWORD")
 if not APP_USER or not APP_PASS:
     print("⚠️ APP_USERNAME / APP_PASSWORD no configurados en Render.")
 
-
 @app.after_request
 def add_header(resp):
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -175,7 +167,7 @@ def add_header(resp):
     resp.headers["Expires"] = "0"
     return resp
 
-
+# ---------- Login Template ----------
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -230,16 +222,13 @@ button{
 </html>
 """
 
-
 def login_required(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if session.get("user") != APP_USER:
             return redirect(url_for("login"))
         return f(*args, **kwargs)
-
     return wrapped
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -253,7 +242,6 @@ def login():
         return render_template_string(LOGIN_TEMPLATE, error="Credenciales incorrectas")
     return render_template_string(LOGIN_TEMPLATE)
 
-
 @app.route("/logout")
 def logout():
     session.clear()
@@ -261,9 +249,8 @@ def logout():
     resp.set_cookie("session", "", expires=0)
     return resp
 
-
 # ============================================================
-# 5. SELECTOR DE CAPAS (con tus imágenes)
+# 5. SELECTOR DE CAPAS
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -353,12 +340,10 @@ h1{
 </html>
 """
 
-
 @app.route("/selector")
 @login_required
 def selector():
     return render_template_string(SELECTOR_TEMPLATE)
-
 
 # ============================================================
 # 6. RUTA DEL MAPA POR CAPA
@@ -370,6 +355,7 @@ def mapa_tipo(tipo):
         return "No existe esa capa", 404
 
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
+
     return render_template_string(
         TEMPLATE_MAPA,
         tipo_mapa=tipo,
@@ -383,7 +369,6 @@ def mapa_tipo(tipo):
         initial_center=initial_center,
         initial_zoom=6,
     )
-
 
 # ============================================================
 # 7. API /api/points — Filtrado jerárquico completo
@@ -455,10 +440,10 @@ def api_points():
 
     return jsonify(puntos)
 
-
 # ============================================================
 # 8. TEMPLATE MAPA — VIENE EN LA PARTE 2
 # ============================================================
+
 
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -480,168 +465,66 @@ TEMPLATE_MAPA = """
   --card:#ffffff;
 }
 html,body{
-  margin:0;
-  padding:0;
-  height:100%;
+  margin:0; padding:0; height:100%;
   font-family:Inter,Arial,Helvetica,sans-serif;
   background:#eef4fb;
 }
 header{
-  background:#003366;
-  color:white;
-  height:70px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  background:#003366; color:white;
+  height:70px; display:flex; align-items:center; justify-content:center;
   position:relative;
   box-shadow:0 6px 18px rgba(0,0,0,0.25);
 }
-header h1{
-  margin:0;
-  font-size:1.9rem;
-}
+header h1{margin:0; font-size:1.9rem;}
 .logout{
-  position:absolute;
-  right:20px;
-  background:#1464A5;
-  color:white;
-  padding:8px 16px;
-  border-radius:8px;
-  text-decoration:none;
-  font-weight:600;
+  position:absolute; right:20px;
+  background:#1464A5; color:white;
+  padding:8px 16px; border-radius:8px;
+  text-decoration:none; font-weight:600;
 }
 
-/* CONTROLES SUPERIORES */
-.topbar{
-  padding:16px 20px 8px 20px;
-}
+/* CONTROLES */
+.topbar{ padding:16px 20px 8px 20px; }
 .controls{
-  background:white;
-  padding:12px;
-  border-radius:12px;
+  background:white; padding:12px; border-radius:12px;
   box-shadow:0 4px 16px rgba(0,0,0,0.12);
-  display:flex;
-  gap:12px;
-  align-items:center;
-  flex-wrap:wrap;
+  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
 }
-.controls label{
-  font-size:13px;
-  color:var(--muted);
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-select{
-  padding:6px 10px;
-  border-radius:8px;
-  border:1px solid #d0d7e3;
-}
-input[type="checkbox"]{
-  transform:scale(1.05);
-}
+.controls label{ font-size:13px; color:var(--muted); display:flex; gap:6px; }
+select{ padding:6px 10px; border-radius:8px; border:1px solid #d0d7e3; }
 
-/* LAYOUT PRINCIPAL */
-.main{
-  display:flex;
-  padding:0 20px 20px 20px;
-  gap:18px;
-}
+/* LAYOUT */
+.main{ display:flex; gap:18px; padding:0 20px 20px 20px; }
 #map{
-  flex:1;
-  height:74vh;
-  border-radius:12px;
+  flex:1; height:74vh; border-radius:12px;
   overflow:hidden;
   box-shadow:0 8px 24px rgba(0,0,0,0.18);
 }
 
 /* SIDE PANEL */
-.side{
-  width:330px;
-}
+.side{ width:330px; }
+
 .side-card{
-  background:white;
+  background:white; padding:14px 16px;
   border-radius:12px;
-  padding:14px 16px;
   box-shadow:0 6px 22px rgba(0,0,0,0.12);
   margin-bottom:12px;
-  font-size:13px;
-}
-.side-title{
-  font-weight:700;
-  margin-bottom:4px;
-}
-.muted{
-  color:var(--muted);
-  font-size:12px;
 }
 
-/* Panel ATM seleccionado */
 .side-card-atm{
-  font-family:"Consolas","Fira Code",monospace;
-  white-space:pre-line;
-  line-height:1.35;
   border-left:4px solid var(--bbva-blue);
-  position:relative;
+  white-space:pre-line;
+  font-size:13px;
+  padding:12px 14px;
 }
-.side-card-atm h3{
-  margin:0 0 6px 0;
-  font-size:14px;
-}
-.btn-small{
-  display:inline-block;
-  margin-top:8px;
-  padding:4px 10px;
-  border-radius:6px;
-  border:none;
-  background:var(--bbva-blue);
-  color:white;
-  font-size:12px;
-  cursor:pointer;
-}
-
-/* Glow suave cuando hay ATM seleccionado */
-@keyframes panelGlow{
-  0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
-  50%{box-shadow:0 0 18px rgba(20,100,165,0.55);}
-  100%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
-}
-.side-card-atm.glow{
-  animation:panelGlow 2.2s ease-in-out infinite;
-}
-
-/* Ocultar */
 .hidden{ display:none; }
 
-/* Popup Leaflet */
-.leaflet-popup-content-wrapper{
-  border-radius:12px;
-  box-shadow:0 6px 20px rgba(0,0,0,0.25);
-}
-.popup-title{
-  font-size:14px;
-  font-weight:bold;
-  color:var(--bbva-blue);
-  margin-bottom:4px;
-}
-.popup-row{
-  margin:2px 0;
-  font-size:12px;
-}
-
-/* Iconos personalizados */
-.icon-bank div{
-  font-size:30px;
-}
-.icon-isla div{
-  font-size:30px;
-  color:deepskyblue;
-}
-.icon-round div{
-  width:14px;
-  height:14px;
-  border-radius:50%;
-  border:2px solid white;
+.btn-small{
+  margin-top:8px;
+  padding:6px 12px;
+  background:#1464A5; color:white;
+  border:none; border-radius:6px;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -655,11 +538,12 @@ input[type="checkbox"]{
 
 <div class="topbar">
   <div class="controls">
+
     <label>Departamento:
       <select id="selDepartamento">
         <option value="">-- Todos --</option>
         {% for d in departamentos %}
-        <option value="{{d}}">{{d}}</option>
+          <option value="{{d}}">{{d}}</option>
         {% endfor %}
       </select>
     </label>
@@ -698,46 +582,40 @@ input[type="checkbox"]{
 </div>
 
 <div class="main">
+
   <div id="map"></div>
 
   <div class="side">
+
     <!-- PANEL RESUMEN -->
     <div id="panelResumen" class="side-card">
-      <div class="side-title" id="panelResumenTitulo">Resumen</div>
-      <div class="muted" id="panelResumenSub">Promedio total:</div>
-      <div style="margin-top:4px;">
-        <b>Promedio total:</b> <span id="resPromedio">0</span>
-      </div>
-      <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs en oficinas</div>
-      <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
-      <div class="muted">Dispensador: <span id="resDisp">0</span></div>
-      <div class="muted">Monedero: <span id="resMon">0</span></div>
-      <div class="muted">Reciclador: <span id="resRec">0</span></div>
-
-      <div style="margin-top:10px; font-weight:600;">Leyenda</div>
-      <div class="muted">
-        <div>🔴 ATM ≥ 4</div>
-        <div>🟢 ATM ≤ 3</div>
-        <div>🏦 Oficina</div>
-        <div>🌐 Isla</div>
-        <div>🧍 Agente</div>
-      </div>
+      <b>Resumen</b>
+      <div class="muted">Promedio total: <span id="resPromedio">0</span></div>
+      <div>Total ATMs: <span id="resTotal">0</span></div>
+      <div>Dispensador: <span id="resDisp">0</span></div>
+      <div>Monedero: <span id="resMon">0</span></div>
+      <div>Reciclador: <span id="resRec">0</span></div>
     </div>
 
-    <!-- PANEL ATM SELECCIONADO -->
+    <!-- PANEL ATM -->
     <div id="panelATM" class="side-card side-card-atm hidden">
-      <h3>Panel del ATM seleccionado</h3>
-      <div id="atmDetalle" style="font-size:12px; margin-top:4px;"></div>
+      <div id="atmDetalle"></div>
       <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
+
   </div>
+
 </div>
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
+/* ================================
+   VARIABLES DE FILTRO
+================================ */
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
 const DIST_BY_PROV = {{ dist_by_prov|tojson }};
 const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
@@ -747,281 +625,188 @@ const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
+/* MAPA */
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom:19 }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 const markers = L.markerClusterGroup({chunkedLoading:true});
 const heat    = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
 heat.addTo(map);
 
-// Combos
+/* ELEMENTOS UI */
 const selDep  = document.getElementById("selDepartamento");
 const selProv = document.getElementById("selProvincia");
 const selDist = document.getElementById("selDistrito");
 const selDiv  = document.getElementById("selDivision");
 const chkHeat = document.getElementById("chkHeat");
+
+const panelResumen = document.getElementById("panelResumen");
+const panelATM     = document.getElementById("panelATM");
+const btnVolver    = document.getElementById("btnVolver");
+const atmDetalle   = document.getElementById("atmDetalle");
+
 const infoBox = document.getElementById("infoCount");
+const resProm = document.getElementById("resPromedio");
+const resTot  = document.getElementById("resTotal");
+const resDisp = document.getElementById("resDisp");
+const resMon  = document.getElementById("resMon");
+const resRec  = document.getElementById("resRec");
 
-// Panel resumen
-const panelResumen      = document.getElementById("panelResumen");
-const panelResumenTitulo= document.getElementById("panelResumenTitulo");
-const panelResumenSub   = document.getElementById("panelResumenSub");
-const resPromedio       = document.getElementById("resPromedio");
-const resTituloBloque   = document.getElementById("resTituloBloque");
-const resTotal          = document.getElementById("resTotal");
-const resDisp           = document.getElementById("resDisp");
-const resMon            = document.getElementById("resMon");
-const resRec            = document.getElementById("resRec");
+/* ============================
+   ICONOS
+============================ */
+function getIcon(pt){
+  const ubic = (pt.ubicacion || "").toUpperCase();
 
-// Panel ATM
-const panelATM   = document.getElementById("panelATM");
-const atmDetalle = document.getElementById("atmDetalle");
-const btnVolver  = document.getElementById("btnVolver");
-
-// Títulos según capa
-if(TIPO_MAPA === "oficinas"){
-  panelResumenTitulo.textContent = "Resumen — Oficinas";
-  resTituloBloque.textContent    = "ATMs en oficinas";
-} else if(TIPO_MAPA === "islas"){
-  panelResumenTitulo.textContent = "Resumen — Islas";
-  resTituloBloque.textContent    = "ATMs en islas";
-} else if(TIPO_MAPA === "agentes"){
-  panelResumenTitulo.textContent = "Resumen — Agentes";
-  resTituloBloque.textContent    = "ATMs en agentes";
-}
-
-// ------------------- combos dependientes --------------------
-// ------------------- combos dependientes --------------------
-function updateProvincias(){
-  let d = selDep.value;
-
-  // limpiar provincia
-  selProv.innerHTML = '<option value="">-- Todas --</option>';
-  if(d && PROV_BY_DEPT[d]){
-    PROV_BY_DEPT[d].forEach(p => {
-      selProv.innerHTML += `<option value="${p}">${p}</option>`;
-    });
+  if(ubic.includes("OFICINA")){
+    return L.divIcon({className:"", html:"<div>🏦</div>", iconSize:[32,32], iconAnchor:[16,16]});
+  }
+  if(ubic.includes("ISLA")){
+    return L.divIcon({className:"", html:"<div>🌐</div>", iconSize:[32,32], iconAnchor:[16,16]});
+  }
+  if(ubic.includes("AGENTE")){
+    return L.divIcon({className:"", html:"<div>🧍</div>", iconSize:[30,30], iconAnchor:[15,15]});
   }
 
-  updateDistritos();  
+  const color = (pt.promedio >= 4 ? "red" : "green");
+  return L.divIcon({
+    html:`<div style='width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;'></div>`,
+    iconSize:[16,16],
+    iconAnchor:[8,8]
+  });
+}
+
+/* ============================
+   PANEL ATM + BOTÓN VOLVER
+============================ */
+function showATMPanel(pt){
+  atmDetalle.textContent =
+`ATM ${pt.atm}
+———————————————
+Nombre: ${pt.nombre}
+Dirección: ${pt.direccion}
+División: ${pt.division}
+Tipo: ${pt.tipo}
+Ubicación: ${pt.ubicacion}
+
+${pt.departamento} / ${pt.provincia} / ${pt.distrito}
+———————————————
+Promedio: ${pt.promedio}
+`;
+
+  panelResumen.classList.add("hidden");
+  panelATM.classList.remove("hidden");
+}
+
+btnVolver.addEventListener("click", () => {
+  panelATM.classList.add("hidden");
+  panelResumen.classList.remove("hidden");
+});
+
+/* ============================
+      FILTROS JERÁRQUICOS
+============================ */
+function updateProvincias(){
+  selProv.innerHTML = '<option value="">-- Todas --</option>';
+  let d = selDep.value;
+  if(d && PROV_BY_DEPT[d]){
+    PROV_BY_DEPT[d].forEach(p => selProv.innerHTML += `<option>${p}</option>`);
+  }
+  updateDistritos();
   updateDivisiones();
 }
 
 function updateDistritos(){
-  let p = selProv.value;
-
-  // limpiar distrito
   selDist.innerHTML = '<option value="">-- Todos --</option>';
+  let p = selProv.value;
   if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(d => {
-      selDist.innerHTML += `<option value="${d}">${d}</option>`;
-    });
+    DIST_BY_PROV[p].forEach(d => selDist.innerHTML += `<option>${d}</option>`);
   }
-
   updateDivisiones();
 }
 
 function updateDivisiones(){
+  selDiv.innerHTML = '<option value="">-- Todas --</option>';
+
   let d  = selDep.value;
   let p  = selProv.value;
   let di = selDist.value;
 
-  selDiv.innerHTML = '<option value="">-- Todas --</option>';
+  if(di && DIV_BY_DIST[di]) return DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option>${v}</option>`);
+  if(p  && DIV_BY_PROV[p])  return DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option>${v}</option>`);
+  if(d  && DIV_BY_DEPT[d])  return DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option>${v}</option>`);
 
-  // prioridad jerárquica
-  if(di && DIV_BY_DIST[di]){
-    DIV_BY_DIST[di].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
-    return;
-  }
-
-  if(p && DIV_BY_PROV[p]){
-    DIV_BY_PROV[p].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
-    return;
-  }
-
-  if(d && DIV_BY_DEPT[d]){
-    DIV_BY_DEPT[d].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
-    return;
-  }
-
-  // si NO hay filtros → mostrar todas
-  {{ divisiones|tojson }}.forEach(v => {
-    selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-  });
+  {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option>${v}</option>`);
 }
 
-// eventos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
 
-// ------------------- Iconos ----------------------
-function getIcon(pt){
-  const ubic = (pt.ubicacion || "").toUpperCase();
-  if(ubic.includes("OFICINA")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🏦</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
-  }
-  if(ubic.includes("ISLA")){
-    return L.divIcon({
-      className:"icon-isla",
-      html:"<div>🌐</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
-  }
-  if(ubic.includes("AGENTE")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🧍</div>",
-      iconSize:[30,30],
-      iconAnchor:[15,15]
-    });
-  }
-  const color = (pt.promedio || 0) >= 4 ? "red" : "green";
-  return L.divIcon({
-    className:"icon-round",
-    html:`<div style="background:${color};"></div>`,
-    iconSize:[14,14],
-    iconAnchor:[7,7]
-  });
-}
-
-// ---------------- Panel ATM seleccionado ----------
-function showATMPanel(pt){
-  const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
-
-  const texto = `
-_____________________
- ATM ${pt.atm}
-_____________________
-
-• Nombre: ${pt.nombre}
-• Dirección: ${pt.direccion}
-• División: ${pt.division}
-• Tipo: ${pt.tipo}
-• Ubicación: ${pt.ubicacion}
-
-• Dpto/Prov/Dist:
-  ${lineaUbic}
-
-_____________________
-Promedio: ${pt.promedio}
-_____________________
-`;
-
-  atmDetalle.textContent = texto;
-  panelResumen.classList.add("hidden");
-  panelATM.classList.remove("hidden");
-  panelATM.classList.add("glow");
-}
-
-// ------------------- FETCH + RENDER ----------------
+/* ============================
+         FETCH + RENDER
+============================ */
 async function fetchPoints(){
-  const d  = selDep.value;
-  const p  = selProv.value;
-  const di = selDist.value;
-  const dv = selDiv.value;
-
-  const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
-  infoBox.textContent = "...";
-
-  // Siempre, al cambiar filtros, volvemos al panel resumen
   panelATM.classList.add("hidden");
-  panelATM.classList.remove("glow");
   panelResumen.classList.remove("hidden");
 
+  const qs = `tipo=${TIPO_MAPA}&departamento=${selDep.value}&provincia=${selProv.value}&distrito=${selDist.value}&division=${selDiv.value}`;
   const res = await fetch(`/api/points?${qs}`);
   const data = await res.json();
 
-  infoBox.textContent = data.length;
   markers.clearLayers();
   heat.setLatLngs([]);
 
   let heatPts = [];
-  let bounds  = [];
-  let sumProm = 0;
+  let bounds = [];
 
-  let cTotal = 0, cDisp = 0, cMon = 0, cRec = 0;
+  let cT=0, cD=0, cM=0, cR=0, sum=0;
 
   data.forEach(pt => {
-    cTotal++;
-    sumProm += (pt.promedio || 0);
+    cT++; sum+=pt.promedio;
 
-    const tipoUpper = (pt.tipo || "").toString().toUpperCase();
-    if(tipoUpper.includes("DISPENSADOR")) cDisp++;
-    if(tipoUpper.includes("MONEDERO"))    cMon++;
-    if(tipoUpper.includes("RECICLADOR"))  cRec++;
+    const m = L.marker([pt.lat, pt.lon], {icon:getIcon(pt)});
+    m.on("click",()=> showATMPanel(pt));
+    markers.addLayer(m);
 
-    const icon = getIcon(pt);
-    const popup = `
-      <div class="popup-title">${pt.nombre}</div>
-      <div class="popup-row"><b>ATM:</b> ${pt.atm}</div>
-      <div class="popup-row"><b>Dirección:</b> ${pt.direccion}</div>
-      <div class="popup-row"><b>División:</b> ${pt.division}</div>
-      <div class="popup-row"><b>Tipo:</b> ${pt.tipo}</div>
-      <div class="popup-row"><b>Ubicación:</b> ${pt.ubicacion}</div>
-      <div class="popup-row"><b>Depto/Prov/Dist:</b> ${pt.departamento} / ${pt.provincia} / ${pt.distrito}</div>
-      <div class="popup-row"><b>Promedio:</b> ${pt.promedio}</div>
-    `;
-  
-
-    const m = L.marker([pt.lat, pt.lon], {icon});
-    m.on("click", () => showATMPanel(pt));
-     markers.addLayer(m);
-
-    heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
+    heatPts.push([pt.lat, pt.lon, pt.promedio]);
     bounds.push([pt.lat, pt.lon]);
+
+    let t = (pt.tipo||"").toUpperCase();
+    if(t.includes("DISPENSADOR")) cD++;
+    if(t.includes("MONEDERO"))    cM++;
+    if(t.includes("RECICLADOR"))  cR++;
   });
+
+  infoBox.textContent = data.length;
+  resTot.textContent = cT;
+  resDisp.textContent = cD;
+  resMon.textContent = cM;
+  resRec.textContent = cR;
+  resProm.textContent = cT>0 ? Math.round(sum) : "0";
 
   heat.setLatLngs(heatPts);
 
-  if(bounds.length === 1){
-    map.setView(bounds[0], 16);
-  }else if(bounds.length > 1){
-    map.fitBounds(bounds, {padding:[20,20]});
-  }else{
-    map.setView(INITIAL_CENTER, INITIAL_ZOOM);
-  }
+  if(bounds.length > 1) map.fitBounds(bounds,{padding:[20,20]});
+  else if(bounds.length === 1) map.setView(bounds[0],15);
+  else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
 
   if(chkHeat.checked){
     if(!map.hasLayer(heat)) heat.addTo(map);
   }else{
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
-
-  // Actualizar resumen
-  if(cTotal > 0){
-    const prom = Math.round(sumProm);
-    resPromedio.textContent = prom.toString();
-  }else{
-    resPromedio.textContent = "0";
-  }
-  resTotal.textContent = cTotal.toString();
-  resDisp.textContent  = cDisp.toString();
-  resMon.textContent   = cMon.toString();
-  resRec.textContent   = cRec.toString();
 }
 
-// Inicial
+chkHeat.onchange = ()=> fetchPoints();
+
+/* INIT */
 updateProvincias();
 fetchPoints();
-</script>
 
+</script>
 </body>
 </html>
 """
-
