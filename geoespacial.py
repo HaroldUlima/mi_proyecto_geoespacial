@@ -793,38 +793,76 @@ if(TIPO_MAPA === "oficinas"){
 }
 
 // ------------------- combos dependientes --------------------
+// ------------------- combos dependientes --------------------
 function updateProvincias(){
   let d = selDep.value;
+
+  // limpiar provincia
   selProv.innerHTML = '<option value="">-- Todas --</option>';
   if(d && PROV_BY_DEPT[d]){
     PROV_BY_DEPT[d].forEach(p => {
       selProv.innerHTML += `<option value="${p}">${p}</option>`;
     });
   }
-  updateDistritos();
+
+  updateDistritos();  
+  updateDivisiones();
 }
 
 function updateDistritos(){
   let p = selProv.value;
+
+  // limpiar distrito
   selDist.innerHTML = '<option value="">-- Todos --</option>';
   if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(x => {
-      selDist.innerHTML += `<option value="${x}">${x}</option>`;
+    DIST_BY_PROV[p].forEach(d => {
+      selDist.innerHTML += `<option value="${d}">${d}</option>`;
     });
   }
+
+  updateDivisiones();
 }
 
+function updateDivisiones(){
+  let d  = selDep.value;
+  let p  = selProv.value;
+  let di = selDist.value;
+
+  selDiv.innerHTML = '<option value="">-- Todas --</option>';
+
+  // prioridad jerárquica
+  if(di && DIV_BY_DIST[di]){
+    DIV_BY_DIST[di].forEach(v => {
+      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
+    });
+    return;
+  }
+
+  if(p && DIV_BY_PROV[p]){
+    DIV_BY_PROV[p].forEach(v => {
+      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
+    });
+    return;
+  }
+
+  if(d && DIV_BY_DEPT[d]){
+    DIV_BY_DEPT[d].forEach(v => {
+      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
+    });
+    return;
+  }
+
+  // si NO hay filtros → mostrar todas
+  {{ divisiones|tojson }}.forEach(v => {
+    selDiv.innerHTML += `<option value="${v}">${v}</option>`;
+  });
+}
+
+// eventos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
-selDist.onchange = ()=> fetchPoints();
+selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
-chkHeat.onchange = ()=> fetchPoints();
-
-btnVolver.onclick = ()=>{
-  panelATM.classList.add("hidden");
-  panelATM.classList.remove("glow");
-  panelResumen.classList.remove("hidden");
-};
 
 // ------------------- Iconos ----------------------
 function getIcon(pt){
@@ -939,9 +977,11 @@ async function fetchPoints(){
       <div class="popup-row"><b>Depto/Prov/Dist:</b> ${pt.departamento} / ${pt.provincia} / ${pt.distrito}</div>
       <div class="popup-row"><b>Promedio:</b> ${pt.promedio}</div>
     `;
-    const m = L.marker([pt.lat, pt.lon], {icon}).bindPopup(popup);
+  
+
+    const m = L.marker([pt.lat, pt.lon], {icon});
     m.on("click", () => showATMPanel(pt));
-    markers.addLayer(m);
+     markers.addLayer(m);
 
     heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
