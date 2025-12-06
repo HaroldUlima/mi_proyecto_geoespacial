@@ -40,7 +40,7 @@ def get_address(lat, lon):
 
 
 # ============================================================
-# 2. CARGAR EXCEL PRINCIPAL (OFICINAS + ISLAS + AGENTES)
+# 2. CARGAR EXCEL PRINCIPAL (OFICINAS + ISLAS)
 # ============================================================
 BASE_DIR = os.path.dirname(__file__)
 excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
@@ -90,7 +90,8 @@ if PROM_COL is None:
     PROM_COL = "PROM_FAKE"
 
 # Asegurar columnas mínimas
-for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, COL_DIV, COL_TIPO, COL_UBIC, PROM_COL]:
+for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON,
+          COL_DIV, COL_TIPO, COL_UBIC, PROM_COL]:
     if c not in raw.columns:
         raw[c] = ""
 
@@ -386,7 +387,7 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API /api/points — Filtrado jerárquico completo
+# 7. API /api/points — capa ISLAS unificada, OFICINAS/AGENTES vacías
 # ============================================================
 @app.route("/api/points")
 @login_required
@@ -400,22 +401,15 @@ def api_points():
 
     dff = df.copy()
 
+    # Normalizar a mayúsculas para el filtrado
     dff[COL_DEPT] = dff[COL_DEPT].astype(str).str.upper().str.strip()
     dff[COL_PROV] = dff[COL_PROV].astype(str).str.upper().str.strip()
     dff[COL_DIST] = dff[COL_DIST].astype(str).str.upper().str.strip()
     dff[COL_DIV] = dff[COL_DIV].astype(str).str.upper().str.strip()
     dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
-    dff[COL_TIPO] = dff[COL_TIPO].astype(str)
+    dff[COL_TIPO] = dff[COL_TIPO].astype(str).str.upper().str.strip()
 
-    # Filtrar por capa
-    if tipo_mapa == "oficinas":
-        dff = dff[dff[COL_UBIC].str.contains("OFICINA", na=False)]
-    elif tipo_mapa == "islas":
-        dff = dff[dff[COL_UBIC].str.contains("ISLA", na=False)]
-    elif tipo_mapa == "agentes":
-        dff = dff[dff[COL_UBIC].str.contains("AGENTE", na=False)]
-
-    # Filtros jerárquicos
+    # Filtros jerárquicos (siempre sobre todo el universo)
     if dpto:
         dff = dff[dff[COL_DEPT] == dpto]
     if prov:
@@ -425,8 +419,32 @@ def api_points():
     if divi:
         dff = dff[dff[COL_DIV] == divi]
 
+    # Capa ISLAS = mapa unificado (OFICINA + ISLA)
+    # Capa OFICINAS y AGENTES = vacías (como AGENTES actual)
+    if tipo_mapa == "islas":
+        dff_layer = dff  # usamos todos los ATMs filtrados por dpto/prov/dist/div
+    else:
+        # oficinas y agentes se muestran vacías
+        dff_layer = dff.iloc[0:0]
+
+    # ------------------ Cálculos del resumen -------------------
+    total_atms = int(len(dff_layer))
+
+    if total_atms > 0:
+        promedio_total = float(dff_layer[PROM_COL].mean())
+    else:
+        promedio_total = 0.0
+
+    total_oficinas = int(dff_layer[COL_UBIC].str.contains("OFICINA", na=False).sum())
+    total_islas = int(dff_layer[COL_UBIC].str.contains("ISLA", na=False).sum())
+
+    total_disp = int(dff_layer[COL_TIPO].str.contains("DISPENSADOR", na=False).sum())
+    total_mon  = int(dff_layer[COL_TIPO].str.contains("MONEDERO",   na=False).sum())
+    total_rec  = int(dff_layer[COL_TIPO].str.contains("RECICLADOR", na=False).sum())
+
+    # ------------------ Construcción de puntos -----------------
     puntos = []
-    for _, r in dff.iterrows():
+    for _, r in dff_layer.iterrows():
         nombre = ""
         if COL_NAME and COL_NAME in r.index:
             nombre = str(r.get(COL_NAME, "")).strip()
@@ -453,12 +471,26 @@ def api_points():
             }
         )
 
-    return jsonify(puntos)
+    return jsonify(
+        {
+            "puntos": puntos,
+            "total_atms": total_atms,
+            "total_oficinas": total_oficinas,
+            "total_islas": total_islas,
+            "total_disp": total_disp,
+            "total_mon": total_mon,
+            "total_rec": total_rec,
+            "promedio_total": promedio_total,
+        }
+    )
 
 
 # ============================================================
-# 8. TEMPLATE MAPA — VIENE EN LA PARTE 2
+# 8. TEMPLATE MAPA — PARTE 2
 # ============================================================
+
+
+
 
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -705,12 +737,17 @@ input[type="checkbox"]{
     <div id="panelResumen" class="side-card">
       <div class="side-title" id="panelResumenTitulo">Resumen</div>
       <div class="muted" id="panelResumenSub">Promedio total:</div>
+
       <div style="margin-top:4px;">
         <b>Promedio total:</b> <span id="resPromedio">0</span>
       </div>
-      <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs en oficinas</div>
+
+      <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
       <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
-      <div class="muted">Dispensador: <span id="resDisp">0</span></div>
+      <div class="muted">ATMs en oficinas: <span id="resOfi">0</span></div>
+      <div class="muted">ATMs en islas: <span id="resIsla">0</span></div>
+
+      <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
       <div class="muted">Monedero: <span id="resMon">0</span></div>
       <div class="muted">Reciclador: <span id="resRec">0</span></div>
 
@@ -767,10 +804,11 @@ const infoBox = document.getElementById("infoCount");
 // Panel resumen
 const panelResumen      = document.getElementById("panelResumen");
 const panelResumenTitulo= document.getElementById("panelResumenTitulo");
-const panelResumenSub   = document.getElementById("panelResumenSub");
 const resPromedio       = document.getElementById("resPromedio");
 const resTituloBloque   = document.getElementById("resTituloBloque");
 const resTotal          = document.getElementById("resTotal");
+const resOfi            = document.getElementById("resOfi");
+const resIsla           = document.getElementById("resIsla");
 const resDisp           = document.getElementById("resDisp");
 const resMon            = document.getElementById("resMon");
 const resRec            = document.getElementById("resRec");
@@ -783,43 +821,36 @@ const btnVolver  = document.getElementById("btnVolver");
 // Títulos según capa
 if(TIPO_MAPA === "oficinas"){
   panelResumenTitulo.textContent = "Resumen — Oficinas";
-  resTituloBloque.textContent    = "ATMs en oficinas";
+  resTituloBloque.textContent    = "ATMs totales (capa oficinas)";
 } else if(TIPO_MAPA === "islas"){
-  panelResumenTitulo.textContent = "Resumen — Islas";
-  resTituloBloque.textContent    = "ATMs en islas";
+  panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
+  resTituloBloque.textContent    = "ATMs totales (unificado)";
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
-  resTituloBloque.textContent    = "ATMs en agentes";
+  resTituloBloque.textContent    = "ATMs totales (agentes)";
 }
 
 // ------------------- combos dependientes --------------------
-// ------------------- combos dependientes --------------------
 function updateProvincias(){
   let d = selDep.value;
-
-  // limpiar provincia
   selProv.innerHTML = '<option value="">-- Todas --</option>';
   if(d && PROV_BY_DEPT[d]){
     PROV_BY_DEPT[d].forEach(p => {
       selProv.innerHTML += `<option value="${p}">${p}</option>`;
     });
   }
-
-  updateDistritos();  
+  updateDistritos();
   updateDivisiones();
 }
 
 function updateDistritos(){
   let p = selProv.value;
-
-  // limpiar distrito
   selDist.innerHTML = '<option value="">-- Todos --</option>';
   if(p && DIST_BY_PROV[p]){
     DIST_BY_PROV[p].forEach(d => {
       selDist.innerHTML += `<option value="${d}">${d}</option>`;
     });
   }
-
   updateDivisiones();
 }
 
@@ -830,35 +861,23 @@ function updateDivisiones(){
 
   selDiv.innerHTML = '<option value="">-- Todas --</option>';
 
-  // prioridad jerárquica
   if(di && DIV_BY_DIST[di]){
-    DIV_BY_DIST[di].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
+    DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
-
   if(p && DIV_BY_PROV[p]){
-    DIV_BY_PROV[p].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
+    DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
-
   if(d && DIV_BY_DEPT[d]){
-    DIV_BY_DEPT[d].forEach(v => {
-      selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-    });
+    DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
 
-  // si NO hay filtros → mostrar todas
-  {{ divisiones|tojson }}.forEach(v => {
-    selDiv.innerHTML += `<option value="${v}">${v}</option>`;
-  });
+  {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
 }
 
-// eventos
+// eventos combos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
@@ -929,6 +948,12 @@ _____________________
   panelATM.classList.add("glow");
 }
 
+btnVolver.addEventListener("click", () => {
+  panelATM.classList.add("hidden");
+  panelATM.classList.remove("glow");
+  panelResumen.classList.remove("hidden");
+});
+
 // ------------------- FETCH + RENDER ----------------
 async function fetchPoints(){
   const d  = selDep.value;
@@ -947,25 +972,16 @@ async function fetchPoints(){
   const res = await fetch(`/api/points?${qs}`);
   const data = await res.json();
 
-  infoBox.textContent = data.length;
+  const pts = data.puntos || [];
+
+  infoBox.textContent = data.total_atms ?? pts.length;
   markers.clearLayers();
   heat.setLatLngs([]);
 
   let heatPts = [];
   let bounds  = [];
-  let sumProm = 0;
 
-  let cTotal = 0, cDisp = 0, cMon = 0, cRec = 0;
-
-  data.forEach(pt => {
-    cTotal++;
-    sumProm += (pt.promedio || 0);
-
-    const tipoUpper = (pt.tipo || "").toString().toUpperCase();
-    if(tipoUpper.includes("DISPENSADOR")) cDisp++;
-    if(tipoUpper.includes("MONEDERO"))    cMon++;
-    if(tipoUpper.includes("RECICLADOR"))  cRec++;
-
+  pts.forEach(pt => {
     const icon = getIcon(pt);
     const popup = `
       <div class="popup-title">${pt.nombre}</div>
@@ -977,11 +993,11 @@ async function fetchPoints(){
       <div class="popup-row"><b>Depto/Prov/Dist:</b> ${pt.departamento} / ${pt.provincia} / ${pt.distrito}</div>
       <div class="popup-row"><b>Promedio:</b> ${pt.promedio}</div>
     `;
-  
 
     const m = L.marker([pt.lat, pt.lon], {icon});
+    m.bindPopup(popup);
     m.on("click", () => showATMPanel(pt));
-     markers.addLayer(m);
+    markers.addLayer(m);
 
     heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
@@ -1003,17 +1019,17 @@ async function fetchPoints(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // Actualizar resumen
-  if(cTotal > 0){
-    const prom = Math.round(sumProm);
-    resPromedio.textContent = prom.toString();
-  }else{
-    resPromedio.textContent = "0";
-  }
-  resTotal.textContent = cTotal.toString();
-  resDisp.textContent  = cDisp.toString();
-  resMon.textContent   = cMon.toString();
-  resRec.textContent   = cRec.toString();
+  // Actualizar resumen con datos del backend
+  const prom = data.promedio_total || 0;
+  resPromedio.textContent = Math.round(prom).toString();
+
+  resTotal.textContent = (data.total_atms || 0).toString();
+  resOfi.textContent   = (data.total_oficinas || 0).toString();
+  resIsla.textContent  = (data.total_islas || 0).toString();
+
+  resDisp.textContent  = (data.total_disp || 0).toString();
+  resMon.textContent   = (data.total_mon  || 0).toString();
+  resRec.textContent   = (data.total_rec  || 0).toString();
 }
 
 // Inicial
@@ -1024,4 +1040,5 @@ fetchPoints();
 </body>
 </html>
 """
+
 
