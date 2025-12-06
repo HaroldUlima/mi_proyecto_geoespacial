@@ -50,6 +50,7 @@ if not os.path.exists(excel_main):
 
 raw = pd.read_excel(excel_main)
 
+
 # ---------------- Normalizador de nombres de columna -----------
 def normalize_col(s):
     s = str(s)
@@ -156,7 +157,7 @@ DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique())
 
 
 # ============================================================
-# 4. FLASK + LOGIN (con imagen bbva.png)
+# 4. FLASK + LOGIN
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
@@ -263,7 +264,7 @@ def logout():
 
 
 # ============================================================
-# 5. SELECTOR DE CAPAS (con tus imágenes)
+# 5. SELECTOR DE CAPAS
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -459,6 +460,11 @@ def api_points():
 # ============================================================
 # 8. TEMPLATE MAPA — VIENE EN LA PARTE 2
 # ============================================================
+
+TEMPLATE_MAPA = """
+(Se completa en la PARTE 2)
+"""
+
 
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -679,9 +685,6 @@ input[type="checkbox"]{
     <label>División:
       <select id="selDivision">
         <option value="">-- Todas --</option>
-        {% for dv in divisiones %}
-        <option value="{{dv}}">{{dv}}</option>
-        {% endfor %}
       </select>
     </label>
 
@@ -718,9 +721,7 @@ input[type="checkbox"]{
       <div class="muted">
         <div>🔴 ATM ≥ 4</div>
         <div>🟢 ATM ≤ 3</div>
-        <div>🏦 Oficina</div>
-        <div>🌐 Isla</div>
-        <div>🧍 Agente</div>
+        <div id="legendLinea"></div>
       </div>
     </div>
 
@@ -734,7 +735,7 @@ input[type="checkbox"]{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -743,6 +744,7 @@ const DIST_BY_PROV = {{ dist_by_prov|tojson }};
 const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
 const DIV_BY_PROV  = {{ div_by_prov|tojson }};
 const DIV_BY_DIST  = {{ div_by_dist|tojson }};
+const DIV_ALL      = {{ divisiones|tojson }};
 const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
@@ -780,16 +782,22 @@ const panelATM   = document.getElementById("panelATM");
 const atmDetalle = document.getElementById("atmDetalle");
 const btnVolver  = document.getElementById("btnVolver");
 
-// Títulos según capa
+// Leyenda capa actual
+const legendLinea = document.getElementById("legendLinea");
+
+// Títulos y leyenda según capa
 if(TIPO_MAPA === "oficinas"){
   panelResumenTitulo.textContent = "Resumen — Oficinas";
   resTituloBloque.textContent    = "ATMs en oficinas";
+  legendLinea.textContent        = "🏦 Oficina";
 } else if(TIPO_MAPA === "islas"){
   panelResumenTitulo.textContent = "Resumen — Islas";
   resTituloBloque.textContent    = "ATMs en islas";
+  legendLinea.textContent        = "🌐 Isla";
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
   resTituloBloque.textContent    = "ATMs en agentes";
+  legendLinea.textContent        = "🧍 Agente";
 }
 
 // ------------------- combos dependientes --------------------
@@ -802,6 +810,7 @@ function updateProvincias(){
     });
   }
   updateDistritos();
+  updateDivisiones();
 }
 
 function updateDistritos(){
@@ -812,13 +821,46 @@ function updateDistritos(){
       selDist.innerHTML += `<option value="${x}">${x}</option>`;
     });
   }
+  updateDivisiones();
+}
+
+// Divisiones jerárquicas: por distrito > provincia > departamento > todas
+function updateDivisiones(){
+  selDiv.innerHTML = '<option value="">-- Todas --</option>';
+  const d  = selDep.value;
+  const p  = selProv.value;
+  const di = selDist.value;
+
+  let lista = [];
+
+  if(di && DIV_BY_DIST[di]){
+    lista = DIV_BY_DIST[di];
+  } else if(p && DIV_BY_PROV[p]){
+    lista = DIV_BY_PROV[p];
+  } else if(d && DIV_BY_DEPT[d]){
+    lista = DIV_BY_DEPT[d];
+  } else {
+    lista = DIV_ALL;
+  }
+
+  lista.forEach(v => {
+    selDiv.innerHTML += `<option value="${v}">${v}</option>`;
+  });
 }
 
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
-selDist.onchange = ()=> fetchPoints();
+selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
-chkHeat.onchange = ()=> fetchPoints();
+
+// Heatmap ON/OFF sin borrar ATMs
+chkHeat.onchange = ()=>{
+  if(chkHeat.checked){
+    if(!map.hasLayer(heat)) heat.addTo(map);
+  }else{
+    if(map.hasLayer(heat)) map.removeLayer(heat);
+  }
+};
 
 btnVolver.onclick = ()=>{
   panelATM.classList.add("hidden");
@@ -957,6 +999,7 @@ async function fetchPoints(){
     map.setView(INITIAL_CENTER, INITIAL_ZOOM);
   }
 
+  // Heatmap respetando el checkbox
   if(chkHeat.checked){
     if(!map.hasLayer(heat)) heat.addTo(map);
   }else{
@@ -978,16 +1021,10 @@ async function fetchPoints(){
 
 // Inicial
 updateProvincias();
+updateDivisiones();
 fetchPoints();
 </script>
 
 </body>
 </html>
 """
-
-port : 20000
-
-
-
-
-
