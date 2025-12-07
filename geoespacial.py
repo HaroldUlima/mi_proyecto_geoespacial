@@ -1,5 +1,8 @@
 # ============================================================
-#   PARTE 1 / 2  —  BACKEND COMPLETO + LOGIN + SELECTOR
+#   BACKEND COMPLETO: LOGIN + SELECTOR + 3 CAPAS
+#   - Capa "islas"  : usa Mapa Geoespacial ATM (1) (1).xlsx
+#   - Capa "oficinas": usa OFICINAS.xlsx
+#   - Capa "agentes" : usa AGENTES.xlsx
 # ============================================================
 
 import os
@@ -18,7 +21,6 @@ from flask import (
     session,
 )
 from functools import wraps
-
 
 # ============================================================
 # 1. CACHE DE DIRECCIONES
@@ -40,17 +42,18 @@ def get_address(lat, lon):
 
 
 # ============================================================
-# 2. CARGAR EXCEL PRINCIPAL (OFICINAS + ISLAS)
+# 2. CARGA EXCEL PRINCIPAL (CAPA ISLAS)  +  EXCELS OFICINAS / AGENTES
 # ============================================================
 BASE_DIR = os.path.dirname(__file__)
+
+# ---------------- Excel principal (ISLAS: NO SE TOCA) -----------------
 excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
-
 if not os.path.exists(excel_main):
-    raise FileNotFoundError("No encontré archivo Excel de ATMs.")
+    raise FileNotFoundError("No encontré archivo Excel de ATMs (islas).")
 
-raw = pd.read_excel(excel_main)
+raw_main = pd.read_excel(excel_main)
 
-# ---------------- Normalizador de nombres de columna -----------
+
 def normalize_col(s):
     s = str(s)
     s = unicodedata.normalize("NFKD", s)
@@ -60,18 +63,23 @@ def normalize_col(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
-norm_map = {normalize_col(c): c for c in raw.columns}
+norm_map_main = {normalize_col(c): c for c in raw_main.columns}
 
 
-def find_col(keys):
-    for norm, orig in norm_map.items():
+def find_col(keys, local_map=None):
+    """
+    Busca una columna en el mapa normalizado.
+    Si local_map es None, usa el del archivo principal (islas).
+    """
+    m = local_map or norm_map_main
+    for norm, orig in m.items():
         for k in keys:
             if k in norm:
                 return orig
     return None
 
 
-# ---------------- Detectar columnas principales ----------------
+# --- columnas detectadas en el EXCEL PRINCIPAL (ISLAS) ---
 COL_ATM = find_col(["COD_ATM", "ATM"]) or "ATM"
 COL_NAME = find_col(["NOMBRE", "CAJERO"]) or None
 COL_DEPT = find_col(["DEPARTAMENTO"]) or "DEPARTAMENTO"
@@ -86,74 +94,229 @@ PROM_COL = find_col(["PROMEDIO", "PROM"]) or None
 
 # Si no existe columna de promedio, creamos una falsa
 if PROM_COL is None:
-    raw["PROM_FAKE"] = 0.0
+    raw_main["PROM_FAKE"] = 0.0
     PROM_COL = "PROM_FAKE"
 
-# Asegurar columnas mínimas
-for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON,
-          COL_DIV, COL_TIPO, COL_UBIC, PROM_COL]:
-    if c not in raw.columns:
-        raw[c] = ""
+# Asegurar columnas mínimas en el archivo principal
+for c in [
+    COL_ATM,
+    COL_DEPT,
+    COL_PROV,
+    COL_DIST,
+    COL_LAT,
+    COL_LON,
+    COL_DIV,
+    COL_TIPO,
+    COL_UBIC,
+    PROM_COL,
+]:
+    if c not in raw_main.columns:
+        raw_main[c] = ""
 
-df = raw.copy()
 
-# Limpieza de coordenadas
-df[COL_LAT] = (
-    df[COL_LAT]
-    .astype(str)
-    .str.replace(",", ".", regex=False)
-    .str.replace(r"[^\d\.\-]", "", regex=True)
-    .replace("", np.nan)
-    .astype(float)
-)
-df[COL_LON] = (
-    df[COL_LON]
-    .astype(str)
-    .str.replace(",", ".", regex=False)
-    .str.replace(r"[^\d\.\-]", "", regex=True)
-    .replace("", np.nan)
-    .astype(float)
-)
+def clean_latlon(df):
+    """Normaliza lat/lon para cualquier capa."""
+    df[COL_LAT] = (
+        df[COL_LAT]
+        .astype(str)
+        .str.replace(",", ".", regex=False)
+        .str.replace(r"[^\d\.\-]", "", regex=True)
+        .replace("", np.nan)
+        .astype(float)
+    )
+    df[COL_LON] = (
+        df[COL_LON]
+        .astype(str)
+        .str.replace(",", ".", regex=False)
+        .str.replace(r"[^\d\.\-]", "", regex=True)
+        .replace("", np.nan)
+        .astype(float)
+    )
+    df = df.dropna(subset=[COL_LAT, COL_LON]).reset_index(drop=True)
+    return df
 
-df = df.dropna(subset=[COL_LAT, COL_LON]).reset_index(drop=True)
-df[PROM_COL] = pd.to_numeric(df[PROM_COL], errors="coerce").fillna(0.0)
-df[COL_TIPO] = df[COL_TIPO].astype(str).fillna("")
-df[COL_UBIC] = df[COL_UBIC].astype(str).fillna("")
+
+# ---------- DF ISLAS (EXCEL PRINCIPAL, SIN CAMBIAR LÓGICA) ----------
+df_islas = raw_main.copy()
+df_islas = clean_latlon(df_islas)
+df_islas[PROM_COL] = pd.to_numeric(df_islas[PROM_COL], errors="coerce").fillna(0.0)
+df_islas[COL_TIPO] = df_islas[COL_TIPO].astype(str).fillna("")
+df_islas[COL_UBIC] = df_islas[COL_UBIC].astype(str).fillna("")
 
 # ============================================================
-# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA
+# 2.1  CARGA EXCEL OFICINAS
 # ============================================================
-DEPARTAMENTOS = sorted(df[COL_DEPT].dropna().astype(str).unique().tolist())
+excel_ofi = os.path.join(BASE_DIR, "data", "OFICINAS.xlsx")
+if os.path.exists(excel_ofi):
+    raw_ofi = pd.read_excel(excel_ofi)
+    norm_map_ofi = {normalize_col(c): c for c in raw_ofi.columns}
+
+    def find_ofi(keys):
+        return find_col(keys, local_map=norm_map_ofi)
+
+    col_ofi_code = find_ofi(["COD OFIC", "CODIGO", "COD"])
+    col_ofi_name = find_ofi(["OFICINA"])
+    col_ofi_dept = find_ofi(["DEPARTAMENTO", "DEPARTA"])
+    col_ofi_prov = find_ofi(["PROVINCIA"])
+    col_ofi_dist = find_ofi(["DISTRITO"])
+    col_ofi_lat = find_ofi(["LATITUD", "LAT"])
+    col_ofi_lon = find_ofi(["LONGITUD", "LON"])
+    col_ofi_div = find_ofi(["DIVISION"])
+    col_ofi_prom = find_ofi(["TRX", "PROMEDIO"])
+
+    df_oficinas = pd.DataFrame()
+
+    df_oficinas[COL_ATM] = (
+        raw_ofi[col_ofi_code].astype(str) if col_ofi_code else ""
+    )
+    df_oficinas[COL_DEPT] = (
+        raw_ofi[col_ofi_dept].astype(str) if col_ofi_dept else ""
+    )
+    df_oficinas[COL_PROV] = (
+        raw_ofi[col_ofi_prov].astype(str) if col_ofi_prov else ""
+    )
+    df_oficinas[COL_DIST] = (
+        raw_ofi[col_ofi_dist].astype(str) if col_ofi_dist else ""
+    )
+    df_oficinas[COL_LAT] = raw_ofi[col_ofi_lat] if col_ofi_lat else np.nan
+    df_oficinas[COL_LON] = raw_ofi[col_ofi_lon] if col_ofi_lon else np.nan
+    df_oficinas[COL_DIV] = (
+        raw_ofi[col_ofi_div].astype(str) if col_ofi_div else ""
+    )
+
+    # Todos son oficinas
+    df_oficinas[COL_UBIC] = "OFICINA"
+    df_oficinas[COL_TIPO] = ""  # no tenemos tipo (dispensador/monedero/reciclador)
+
+    # TRX como promedio
+    if col_ofi_prom:
+        df_oficinas[PROM_COL] = pd.to_numeric(
+            raw_ofi[col_ofi_prom], errors="coerce"
+        ).fillna(0.0)
+    else:
+        df_oficinas[PROM_COL] = 0.0
+
+    # Nombre para popup/panel
+    if col_ofi_name:
+        df_oficinas["OFICINA_NOMBRE"] = raw_ofi[col_ofi_name].astype(str)
+    else:
+        df_oficinas["OFICINA_NOMBRE"] = df_oficinas[COL_ATM].astype(str)
+
+    df_oficinas = clean_latlon(df_oficinas)
+else:
+    # Si no existe archivo, capa vacía pero con mismas columnas
+    df_oficinas = df_islas.iloc[0:0].copy()
+    df_oficinas["OFICINA_NOMBRE"] = ""
+
+
+# ============================================================
+# 2.2  CARGA EXCEL AGENTES
+# ============================================================
+excel_ag = os.path.join(BASE_DIR, "data", "AGENTES.xlsx")
+if os.path.exists(excel_ag):
+    raw_ag = pd.read_excel(excel_ag)
+    norm_map_ag = {normalize_col(c): c for c in raw_ag.columns}
+
+    def find_ag(keys):
+        return find_col(keys, local_map=norm_map_ag)
+
+    col_terminal = find_ag(["TERMINAL", "CODIGO", "ATM"])
+    col_comercio = find_ag(["COMERCIO", "NOMBRE"])
+    col_ag_dept = find_ag(["DEPARTAMENTO", "DEPARTA"])
+    col_ag_prov = find_ag(["PROVINCIA"])
+    col_ag_dist = find_ag(["DISTRITO"])
+    col_ag_lat = find_ag(["LATITUD", "LAT"])
+    col_ag_lon = find_ag(["LONGITUD", "LON"])
+    col_ag_div = find_ag(["DIVISION"])
+    col_ag_prom = find_ag(["PROMEDIO", "TRX"])
+
+    df_agentes = pd.DataFrame()
+
+    df_agentes[COL_ATM] = (
+        raw_ag[col_terminal].astype(str) if col_terminal else ""
+    )
+    df_agentes[COL_DEPT] = (
+        raw_ag[col_ag_dept].astype(str) if col_ag_dept else ""
+    )
+    df_agentes[COL_PROV] = (
+        raw_ag[col_ag_prov].astype(str) if col_ag_prov else ""
+    )
+    df_agentes[COL_DIST] = (
+        raw_ag[col_ag_dist].astype(str) if col_ag_dist else ""
+    )
+    df_agentes[COL_LAT] = raw_ag[col_ag_lat] if col_ag_lat else np.nan
+    df_agentes[COL_LON] = raw_ag[col_ag_lon] if col_ag_lon else np.nan
+    df_agentes[COL_DIV] = (
+        raw_ag[col_ag_div].astype(str) if col_ag_div else ""
+    )
+
+    # Todos son agentes
+    df_agentes[COL_UBIC] = "AGENTE"
+    df_agentes[COL_TIPO] = "AGENTE"
+
+    # PROMEDIO como promedio
+    if col_ag_prom:
+        df_agentes[PROM_COL] = pd.to_numeric(
+            raw_ag[col_ag_prom], errors="coerce"
+        ).fillna(0.0)
+    else:
+        df_agentes[PROM_COL] = 0.0
+
+    # Nombre de comercio para popup/panel
+    if col_comercio:
+        df_agentes["COMERCIO_NOMBRE"] = raw_ag[col_comercio].astype(str)
+    else:
+        df_agentes["COMERCIO_NOMBRE"] = df_agentes[COL_ATM].astype(str)
+
+    df_agentes = clean_latlon(df_agentes)
+else:
+    df_agentes = df_islas.iloc[0:0].copy()
+    df_agentes["COMERCIO_NOMBRE"] = ""
+
+
+# ============================================================
+# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA (UNIÓN DE 3 CAPAS)
+# ============================================================
+df_filtros = pd.concat(
+    [
+        df_islas[[COL_DEPT, COL_PROV, COL_DIST, COL_DIV]],
+        df_oficinas[[COL_DEPT, COL_PROV, COL_DIST, COL_DIV]],
+        df_agentes[[COL_DEPT, COL_PROV, COL_DIST, COL_DIV]],
+    ],
+    ignore_index=True,
+)
+
+DEPARTAMENTOS = sorted(df_filtros[COL_DEPT].dropna().astype(str).unique().tolist())
 
 PROVINCIAS_BY_DEPT = (
-    df.groupby(COL_DEPT)[COL_PROV]
+    df_filtros.groupby(COL_DEPT)[COL_PROV]
     .apply(lambda s: sorted(s.dropna().astype(str).unique()))
     .to_dict()
 )
 
 DIST_BY_PROV = (
-    df.groupby(COL_PROV)[COL_DIST]
+    df_filtros.groupby(COL_PROV)[COL_DIST]
     .apply(lambda s: sorted(s.dropna().astype(str).unique()))
     .to_dict()
 )
 
 DIV_BY_DEPT = (
-    df.groupby(COL_DEPT)[COL_DIV]
+    df_filtros.groupby(COL_DEPT)[COL_DIV]
     .apply(lambda s: sorted(s.dropna().astype(str).unique()))
     .to_dict()
 )
 DIV_BY_PROV = (
-    df.groupby(COL_PROV)[COL_DIV]
+    df_filtros.groupby(COL_PROV)[COL_DIV]
     .apply(lambda s: sorted(s.dropna().astype(str).unique()))
     .to_dict()
 )
 DIV_BY_DIST = (
-    df.groupby(COL_DIST)[COL_DIV]
+    df_filtros.groupby(COL_DIST)[COL_DIV]
     .apply(lambda s: sorted(s.dropna().astype(str).unique()))
     .to_dict()
 )
 
-DIVISIONES = sorted(df[COL_DIV].dropna().astype(str).unique())
+DIVISIONES = sorted(df_filtros[COL_DIV].dropna().astype(str).unique())
 
 
 # ============================================================
@@ -251,7 +414,9 @@ def login():
             session.clear()
             session["user"] = u
             return redirect(url_for("selector"))
-        return render_template_string(LOGIN_TEMPLATE, error="Credenciales incorrectas")
+        return render_template_string(
+            LOGIN_TEMPLATE, error="Credenciales incorrectas"
+        )
     return render_template_string(LOGIN_TEMPLATE)
 
 
@@ -264,7 +429,7 @@ def logout():
 
 
 # ============================================================
-# 5. SELECTOR DE CAPAS (con tus imágenes)
+# 5. SELECTOR DE CAPAS
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -370,7 +535,15 @@ def mapa_tipo(tipo):
     if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
-    initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
+    # Centro según capa
+    if tipo == "oficinas" and not df_oficinas.empty:
+        df_center = df_oficinas
+    elif tipo == "agentes" and not df_agentes.empty:
+        df_center = df_agentes
+    else:
+        df_center = df_islas
+
+    initial_center = df_center[[COL_LAT, COL_LON]].mean().tolist()
     return render_template_string(
         TEMPLATE_MAPA,
         tipo_mapa=tipo,
@@ -387,69 +560,90 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API /api/points — capa ISLAS unificada, OFICINAS/AGENTES vacías
+# 7. API /api/points — 3 CAPAS
 # ============================================================
 @app.route("/api/points")
 @login_required
 def api_points():
     tipo_mapa = request.args.get("tipo", "").lower()
 
+    if tipo_mapa == "oficinas":
+        dff = df_oficinas.copy()
+    elif tipo_mapa == "agentes":
+        dff = df_agentes.copy()
+    else:  # islas (mantiene lógica)
+        dff = df_islas.copy()
+
     dpto = request.args.get("departamento", "").upper().strip()
     prov = request.args.get("provincia", "").upper().strip()
     dist = request.args.get("distrito", "").upper().strip()
     divi = request.args.get("division", "").upper().strip()
 
-    dff = df.copy()
-
     # Normalizar a mayúsculas para el filtrado
-    dff[COL_DEPT] = dff[COL_DEPT].astype(str).str.upper().str.strip()
-    dff[COL_PROV] = dff[COL_PROV].astype(str).str.upper().str.strip()
-    dff[COL_DIST] = dff[COL_DIST].astype(str).str.upper().str.strip()
-    dff[COL_DIV] = dff[COL_DIV].astype(str).str.upper().str.strip()
-    dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
-    dff[COL_TIPO] = dff[COL_TIPO].astype(str).str.upper().str.strip()
+    for col in [COL_DEPT, COL_PROV, COL_DIST, COL_DIV, COL_UBIC, COL_TIPO]:
+        if col in dff.columns:
+            dff[col] = dff[col].astype(str).str.upper().str.strip()
 
-    # Filtros jerárquicos (siempre sobre todo el universo)
-    if dpto:
+    # Filtros jerárquicos
+    if dpto and COL_DEPT in dff.columns:
         dff = dff[dff[COL_DEPT] == dpto]
-    if prov:
+    if prov and COL_PROV in dff.columns:
         dff = dff[dff[COL_PROV] == prov]
-    if dist:
+    if dist and COL_DIST in dff.columns:
         dff = dff[dff[COL_DIST] == dist]
-    if divi:
+    if divi and COL_DIV in dff.columns:
         dff = dff[dff[COL_DIV] == divi]
 
-    # Capa ISLAS = mapa unificado (OFICINA + ISLA)
-    # Capa OFICINAS y AGENTES = vacías (como AGENTES actual)
-    if tipo_mapa == "islas":
-        dff_layer = dff  # usamos todos los ATMs filtrados por dpto/prov/dist/div
-    else:
-        # oficinas y agentes se muestran vacías
-        dff_layer = dff.iloc[0:0]
+    dff_layer = dff  # misma lógica, pero según capa
 
     # ------------------ Cálculos del resumen -------------------
     total_atms = int(len(dff_layer))
-
-    if total_atms > 0:
+    if total_atms > 0 and PROM_COL in dff_layer.columns:
         promedio_total = float(dff_layer[PROM_COL].mean())
     else:
         promedio_total = 0.0
 
-    total_oficinas = int(dff_layer[COL_UBIC].str.contains("OFICINA", na=False).sum())
-    total_islas = int(dff_layer[COL_UBIC].str.contains("ISLA", na=False).sum())
+    total_oficinas = (
+        int(dff_layer[COL_UBIC].str.contains("OFICINA", na=False).sum())
+        if COL_UBIC in dff_layer.columns
+        else 0
+    )
+    total_islas = (
+        int(dff_layer[COL_UBIC].str.contains("ISLA", na=False).sum())
+        if COL_UBIC in dff_layer.columns
+        else 0
+    )
 
-    total_disp = int(dff_layer[COL_TIPO].str.contains("DISPENSADOR", na=False).sum())
-    total_mon  = int(dff_layer[COL_TIPO].str.contains("MONEDERO",   na=False).sum())
-    total_rec  = int(dff_layer[COL_TIPO].str.contains("RECICLADOR", na=False).sum())
+    total_disp = (
+        int(dff_layer[COL_TIPO].str.contains("DISPENSADOR", na=False).sum())
+        if COL_TIPO in dff_layer.columns
+        else 0
+    )
+    total_mon = (
+        int(dff_layer[COL_TIPO].str.contains("MONEDERO", na=False).sum())
+        if COL_TIPO in dff_layer.columns
+        else 0
+    )
+    total_rec = (
+        int(dff_layer[COL_TIPO].str.contains("RECICLADOR", na=False).sum())
+        if COL_TIPO in dff_layer.columns
+        else 0
+    )
 
     # ------------------ Construcción de puntos -----------------
     puntos = []
     for _, r in dff_layer.iterrows():
-        nombre = ""
-        if COL_NAME and COL_NAME in r.index:
-            nombre = str(r.get(COL_NAME, "")).strip()
-        if not nombre:
-            nombre = str(r.get(COL_ATM, ""))
+        # Nombre según capa
+        if tipo_mapa == "oficinas":
+            nombre = str(r.get("OFICINA_NOMBRE", "")).strip()
+        elif tipo_mapa == "agentes":
+            nombre = str(r.get("COMERCIO_NOMBRE", "")).strip()
+        else:
+            nombre = ""
+            if COL_NAME and COL_NAME in r.index:
+                nombre = str(r.get(COL_NAME, "")).strip()
+            if not nombre:
+                nombre = str(r.get(COL_ATM, ""))
 
         lat_v = float(r[COL_LAT])
         lon_v = float(r[COL_LON])
@@ -460,7 +654,9 @@ def api_points():
                 "lon": lon_v,
                 "atm": str(r.get(COL_ATM, "")),
                 "nombre": nombre,
-                "promedio": float(r.get(PROM_COL, 0.0)),
+                "promedio": float(r.get(PROM_COL, 0.0))
+                if PROM_COL in r.index
+                else 0.0,
                 "division": str(r.get(COL_DIV, "")),
                 "tipo": str(r.get(COL_TIPO, "")),
                 "ubicacion": str(r.get(COL_UBIC, "")),
@@ -486,12 +682,8 @@ def api_points():
 
 
 # ============================================================
-# 8. TEMPLATE MAPA — PARTE 2
+# 8. TEMPLATE MAPA — (SIN CAMBIOS EN HEATMAP NI POPUP-LESS)
 # ============================================================
-
-
-
-
 TEMPLATE_MAPA = """
 <!doctype html>
 <html>
@@ -771,7 +963,7 @@ input[type="checkbox"]{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -984,7 +1176,6 @@ async function fetchPoints(){
   pts.forEach(pt => {
     const icon = getIcon(pt);
     const popup = `
-      
       <div class="popup-row"><b>ATM:</b> ${pt.atm}</div>
       <div class="popup-row"><b>Dirección:</b> ${pt.direccion}</div>
       <div class="popup-row"><b>División:</b> ${pt.division}</div>
@@ -995,7 +1186,6 @@ async function fetchPoints(){
     `;
 
     const m = L.marker([pt.lat, pt.lon], {icon});
-    
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
 
@@ -1040,3 +1230,5 @@ fetchPoints();
 </body>
 </html>
 """
+
+# Fin de geoespacial.py
