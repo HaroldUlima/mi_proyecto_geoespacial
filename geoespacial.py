@@ -220,9 +220,33 @@ def login_required(f):
 # 6. SELECTOR — MISMO QUE TIENES
 # ============================================================
 
-# (Tu SELECTOR_TEMPLATE se mantiene igual…)
-# No lo dupliqué aquí por espacio.
+# ============================================================
+# 6. RUTA DEL MAPA POR CAPA (OFICINAS / ISLAS / AGENTES)
+# ============================================================
+@app.route("/mapa/<tipo>")
+@login_required
+def mapa_tipo(tipo):
 
+    if tipo not in ["oficinas", "islas", "agentes"]:
+        return "No existe esa capa", 404
+
+    # Centro inicial del mapa (Lima si no quieres mover nada)
+    initial_center = [-12.0464, -77.0428]
+    initial_zoom = 6
+
+    return render_template_string(
+        TEMPLATE_MAPA,
+        tipo_mapa=tipo,
+        departamentos=DEPARTAMENTOS,
+        provincias_by_dept=PROVINCIAS_BY_DEPT,
+        dist_by_prov=DIST_BY_PROV,
+        div_by_dept=DIV_BY_DEPT,
+        div_by_prov=DIV_BY_PROV,
+        div_by_dist=DIV_BY_DIST,
+        divisiones=DIVISIONES,
+        initial_center=initial_center,
+        initial_zoom=initial_zoom,
+    )
 
 # ============================================================
 # 7. API /api/points — AHORA CON CAPA AGENTES
