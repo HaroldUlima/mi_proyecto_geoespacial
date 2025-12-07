@@ -1201,58 +1201,77 @@ if(TIPO_MAPA === "oficinas"){
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
 
-// ------------------- combos dependientes --------------------
+// ------------------- FILTROS JERÁRQUICOS CORREGIDOS --------------------
 function updateProvincias(){
-  let d = selDep.value;
-  selProv.innerHTML = '<option value="">-- Todas --</option>';
-  if(d && PROV_BY_DEPT[d]){
-    PROV_BY_DEPT[d].forEach(p => {
-      selProv.innerHTML += `<option value="${p}">${p}</option>`;
-    });
-  }
-  updateDistritos();
-  updateDivisiones();
+    const d = selDep.value;
+
+    // Reset siguiente nivel
+    selProv.innerHTML = '<option value="">-- Todas --</option>';
+    selDist.innerHTML = '<option value="">-- Todos --</option>';
+    selDiv.innerHTML  = '<option value="">-- Todas --</option>';
+
+    if (d && PROV_BY_DEPT[d]) {
+        PROV_BY_DEPT[d].forEach(p => {
+            selProv.innerHTML += `<option value="${p}">${p}</option>`;
+        });
+    }
+
+    fetchPoints();
 }
 
 function updateDistritos(){
-  let p = selProv.value;
-  selDist.innerHTML = '<option value="">-- Todos --</option>';
-  if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(d => {
-      selDist.innerHTML += `<option value="${d}">${d}</option>`;
-    });
-  }
-  updateDivisiones();
+    const p = selProv.value;
+
+    // Reset niveles inferiores
+    selDist.innerHTML = '<option value="">-- Todos --</option>';
+    selDiv.innerHTML  = '<option value="">-- Todas --</option>';
+
+    if (p && DIST_BY_PROV[p]) {
+        DIST_BY_PROV[p].forEach(dist => {
+            selDist.innerHTML += `<option value="${dist}">${dist}</option>`;
+        });
+    }
+
+    fetchPoints();
 }
 
 function updateDivisiones(){
-  let d  = selDep.value;
-  let p  = selProv.value;
-  let di = selDist.value;
+    const d  = selDep.value;
+    const p  = selProv.value;
+    const di = selDist.value;
 
-  selDiv.innerHTML = '<option value="">-- Todas --</option>';
+    selDiv.innerHTML = '<option value="">-- Todas --</option>';
 
-  if(di && DIV_BY_DIST[di]){
-    DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-    return;
-  }
-  if(p && DIV_BY_PROV[p]){
-    DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-    return;
-  }
-  if(d && DIV_BY_DEPT[d]){
-    DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-    return;
-  }
+    // prioridad: distrito → provincia → departamento
+    if (di && DIV_BY_DIST[di]) {
+        DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        fetchPoints();
+        return;
+    }
 
-  {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+    if (p && DIV_BY_PROV[p]) {
+        DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        fetchPoints();
+        return;
+    }
+
+    if (d && DIV_BY_DEPT[d]) {
+        DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        fetchPoints();
+        return;
+    }
+
+    // Si no hay filtros, se muestran todas
+    {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+
+    fetchPoints();
 }
 
-// eventos combos
-selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
-selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
-selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
-selDiv.onchange  = ()=> fetchPoints();
+// Eventos
+selDep.onchange  = () => updateProvincias();
+selProv.onchange = () => updateDistritos();
+selDist.onchange = () => updateDivisiones();
+selDiv.onchange  = () => fetchPoints();
 
 // ------------------- Iconos ----------------------
 function getIcon(pt){
