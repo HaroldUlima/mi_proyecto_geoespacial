@@ -1,5 +1,6 @@
 # ============================================================
-#   BACKEND COMPLETO + LOGIN + SELECTOR + CAPA ISLAS + AGENTES
+#   BACKEND COMPLETO + LOGIN + SELECTOR
+#   CAPAS: ISLAS (ATMs) + AGENTES + OFICINAS
 # ============================================================
 
 import os
@@ -40,7 +41,7 @@ def get_address(lat, lon):
 
 
 # ============================================================
-# 2. CARGAR EXCEL PRINCIPAL (OFICINAS + ISLAS)
+# 2. CARGAR EXCEL PRINCIPAL (ISLAS / ATMs)
 # ============================================================
 BASE_DIR = os.path.dirname(__file__)
 excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
@@ -48,9 +49,10 @@ excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
 if not os.path.exists(excel_main):
     raise FileNotFoundError("No encontré archivo Excel de ATMs.")
 
+
 raw = pd.read_excel(excel_main)
 
-# ---------------- Normalizador de nombres de columna -----------
+
 def normalize_col(s):
     s = str(s)
     s = unicodedata.normalize("NFKD", s)
@@ -194,11 +196,65 @@ df_agentes[COLA_CAPA] = df_agentes[COLA_CAPA].astype(str).fillna("")
 
 
 # ============================================================
-# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA (ISLAS + AGENTES)
+# 2C. CARGAR EXCEL DE OFICINAS
+# ============================================================
+excel_oficinas = os.path.join(BASE_DIR, "data", "OFICINAS.xlsx")
+if not os.path.exists(excel_oficinas):
+    raise FileNotFoundError("No encontré Excel de OFICINAS.xlsx.")
+
+raw_of = pd.read_excel(excel_oficinas)
+
+norm_map_of = {normalize_col(c): c for c in raw_of.columns}
+
+
+def find_col_of(keys):
+    for norm, orig in norm_map_of.items():
+        for k in keys:
+            if k in norm:
+                return orig
+    return None
+
+
+COLF_ID = find_col_of(["COD OFIC", "COD. OFIC", "COD_OFIC"]) or "COD OFIC."
+COLF_NAME = find_col_of(["OFICINA"]) or "OFICINA"
+COLF_DIV = find_col_of(["DIVISION", "DIVISIÓN"]) or "DIVISION"
+COLF_DEPT = find_col_of(["DEPARTAMENTO"]) or "DEPARTAMENTO"
+COLF_PROV = find_col_of(["PROVINCIA"]) or "PROVINCIA"
+COLF_DIST = find_col_of(["DISTRITO"]) or "DISTRITO"
+COLF_LAT = find_col_of(["LATITUD", "LAT"]) or "LATITUD"
+COLF_LON = find_col_of(["LONGITUD", "LON"]) or "LONGITUD"
+COLF_TRX = find_col_of(["TRX", "TRXS"]) or "TRX"
+
+# TRX es promedio de transacciones
+raw_of[COLF_LAT] = (
+    raw_of[COLF_LAT]
+    .astype(str)
+    .str.replace(",", ".", regex=False)
+    .str.replace(r"[^\d\.\-]", "", regex=True)
+    .replace("", np.nan)
+    .astype(float)
+)
+raw_of[COLF_LON] = (
+    raw_of[COLF_LON]
+    .astype(str)
+    .str.replace(",", ".", regex=False)
+    .str.replace(r"[^\d\.\-]", "", regex=True)
+    .replace("", np.nan)
+    .astype(float)
+)
+
+df_oficinas = raw_of.dropna(subset=[COLF_LAT, COLF_LON]).reset_index(drop=True)
+df_oficinas[COLF_TRX] = pd.to_numeric(df_oficinas[COLF_TRX], errors="coerce").fillna(0.0)
+
+
+# ============================================================
+# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA
+#    (UNIÓN: ISLAS + AGENTES + OFICINAS)
 # ============================================================
 DEPARTAMENTOS = sorted(
     set(df[COL_DEPT].dropna().astype(str).unique())
     | set(df_agentes[COLA_DEPT].dropna().astype(str).unique())
+    | set(df_oficinas[COLF_DEPT].dropna().astype(str).unique())
 )
 
 PROVINCIAS_BY_DEPT = {}
@@ -206,53 +262,58 @@ for d in DEPARTAMENTOS:
     provs = []
     provs += df[df[COL_DEPT] == d][COL_PROV].dropna().astype(str).tolist()
     provs += df_agentes[df_agentes[COLA_DEPT] == d][COLA_PROV].dropna().astype(str).tolist()
+    provs += df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_PROV].dropna().astype(str).tolist()
     PROVINCIAS_BY_DEPT[d] = sorted(set(provs))
 
 all_provs = set(df[COL_PROV].dropna().astype(str).unique()) | set(
     df_agentes[COLA_PROV].dropna().astype(str).unique()
-)
+) | set(df_oficinas[COLF_PROV].dropna().astype(str).unique())
 
 DIST_BY_PROV = {}
 for p in all_provs:
     dists = []
     dists += df[df[COL_PROV] == p][COL_DIST].dropna().astype(str).tolist()
     dists += df_agentes[df_agentes[COLA_PROV] == p][COLA_DIST].dropna().astype(str).tolist()
+    dists += df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIST].dropna().astype(str).tolist()
     DIST_BY_PROV[p] = sorted(set(dists))
 
-# Divisiones: unión de divisiones de ATMs y agentes
 DIV_BY_DEPT = {}
 for d in DEPARTAMENTOS:
     divs = []
     divs += df[df[COL_DEPT] == d][COL_DIV].dropna().astype(str).tolist()
     divs += df_agentes[df_agentes[COLA_DEPT] == d][COLA_DIV].dropna().astype(str).tolist()
+    divs += df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_DIV].dropna().astype(str).tolist()
     DIV_BY_DEPT[d] = sorted(set(divs))
 
-all_provs_for_div = all_provs
 DIV_BY_PROV = {}
-for p in all_provs_for_div:
+for p in all_provs:
     divs = []
     divs += df[df[COL_PROV] == p][COL_DIV].dropna().astype(str).tolist()
     divs += df_agentes[df_agentes[COLA_PROV] == p][COLA_DIV].dropna().astype(str).tolist()
+    divs += df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIV].dropna().astype(str).tolist()
     DIV_BY_PROV[p] = sorted(set(divs))
 
 all_dists = set(df[COL_DIST].dropna().astype(str).unique()) | set(
     df_agentes[COLA_DIST].dropna().astype(str).unique()
-)
+) | set(df_oficinas[COLF_DIST].dropna().astype(str).unique())
+
 DIV_BY_DIST = {}
 for di in all_dists:
     divs = []
     divs += df[df[COL_DIST] == di][COL_DIV].dropna().astype(str).tolist()
     divs += df_agentes[df_agentes[COLA_DIST] == di][COLA_DIV].dropna().astype(str).tolist()
+    divs += df_oficinas[df_oficinas[COLF_DIST] == di][COLF_DIV].dropna().astype(str).tolist()
     DIV_BY_DIST[di] = sorted(set(divs))
 
 DIVISIONES = sorted(
     set(df[COL_DIV].dropna().astype(str).unique())
     | set(df_agentes[COLA_DIV].dropna().astype(str).unique())
+    | set(df_oficinas[COLF_DIV].dropna().astype(str).unique())
 )
 
 
 # ============================================================
-# 4. FLASK + LOGIN (con imagen bbva.png)
+# 4. FLASK + LOGIN
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
@@ -359,7 +420,7 @@ def logout():
 
 
 # ============================================================
-# 5. SELECTOR DE CAPAS (con tus imágenes)
+# 5. SELECTOR DE CAPAS
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -482,7 +543,7 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API /api/points — ISLAS + AGENTES
+# 7. API /api/points — ISLAS + AGENTES + OFICINAS
 # ============================================================
 @app.route("/api/points")
 @login_required
@@ -498,7 +559,6 @@ def api_points():
     if tipo_mapa == "islas":
         dff = df.copy()
 
-        # Normalizar a mayúsculas para el filtrado
         dff[COL_DEPT] = dff[COL_DEPT].astype(str).str.upper().str.strip()
         dff[COL_PROV] = dff[COL_PROV].astype(str).str.upper().str.strip()
         dff[COL_DIST] = dff[COL_DIST].astype(str).str.upper().str.strip()
@@ -506,7 +566,6 @@ def api_points():
         dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
         dff[COL_TIPO] = dff[COL_TIPO].astype(str).str.upper().str.strip()
 
-        # Filtros jerárquicos (siempre sobre todo el universo)
         if dpto:
             dff = dff[dff[COL_DEPT] == dpto]
         if prov:
@@ -518,7 +577,6 @@ def api_points():
 
         dff_layer = dff
 
-        # Cálculos del resumen
         total_atms = int(len(dff_layer))
         if total_atms > 0:
             promedio_total = float(dff_layer[PROM_COL].mean())
@@ -557,7 +615,7 @@ def api_points():
                     "provincia": str(r.get(COL_PROV, "")),
                     "distrito": str(r.get(COL_DIST, "")),
                     "direccion": get_address(lat_v, lon_v),
-                    "capa": "",  # solo para compatibilidad con agentes
+                    "capa": "",
                 }
             )
 
@@ -571,7 +629,6 @@ def api_points():
                 "total_mon": total_mon,
                 "total_rec": total_rec,
                 "promedio_total": promedio_total,
-                # campos de agentes en 0 para que no molesten
                 "total_agentes": 0,
                 "total_capa_A1": 0,
                 "total_capa_A2": 0,
@@ -603,7 +660,6 @@ def api_points():
         total_agentes = int(len(dff))
         promedio_total = float(dff[PROMA_COL].mean()) if total_agentes > 0 else 0.0
 
-        # Conteo por capa
         capa_series = dff[COLA_CAPA].str.upper().fillna("")
         total_capa_A1 = int((capa_series == "A1").sum())
         total_capa_A2 = int((capa_series == "A2").sum())
@@ -623,7 +679,7 @@ def api_points():
                 {
                     "lat": lat_v,
                     "lon": lon_v,
-                    "atm": str(r.get(COLA_ID, "")),  # usamos "atm" por compatibilidad
+                    "atm": str(r.get(COLA_ID, "")),
                     "nombre": str(r.get(COLA_COM, "")),
                     "promedio": float(r.get(PROMA_COL, 0.0)),
                     "division": str(r.get(COLA_DIV, "")),
@@ -642,7 +698,7 @@ def api_points():
         return jsonify(
             {
                 "puntos": puntos,
-                "total_atms": total_agentes,  # reutilizamos para el contador de arriba
+                "total_atms": total_agentes,
                 "total_oficinas": 0,
                 "total_islas": 0,
                 "total_disp": 0,
@@ -658,8 +714,70 @@ def api_points():
             }
         )
 
-    # ---------------------- CAPA OFICINAS (vacía de momento) ----------------------
-    # Si quisieras luego, aquí se implementa igual que islas pero con OFICINAS.xlsx
+    # ---------------------- CAPA OFICINAS ----------------------
+    if tipo_mapa == "oficinas":
+        dff = df_oficinas.copy()
+
+        dff[COLF_DEPT] = dff[COLF_DEPT].astype(str).str.upper().str.strip()
+        dff[COLF_PROV] = dff[COLF_PROV].astype(str).str.upper().str.strip()
+        dff[COLF_DIST] = dff[COLF_DIST].astype(str).str.upper().str.strip()
+        dff[COLF_DIV] = dff[COLF_DIV].astype(str).str.upper().str.strip()
+
+        if dpto:
+            dff = dff[dff[COLF_DEPT] == dpto]
+        if prov:
+            dff = dff[dff[COLF_PROV] == prov]
+        if dist:
+            dff = dff[dff[COLF_DIST] == dist]
+        if divi:
+            dff = dff[dff[COLF_DIV] == divi]
+
+        total_oficinas = int(len(dff))
+        promedio_total = float(dff[COLF_TRX].mean()) if total_oficinas > 0 else 0.0
+
+        puntos = []
+        for _, r in dff.iterrows():
+            lat_v = float(r[COLF_LAT])
+            lon_v = float(r[COLF_LON])
+
+            puntos.append(
+                {
+                    "lat": lat_v,
+                    "lon": lon_v,
+                    "atm": str(r.get(COLF_ID, "")),
+                    "nombre": str(r.get(COLF_NAME, "")),
+                    "promedio": float(r.get(COLF_TRX, 0.0)),
+                    "division": str(r.get(COLF_DIV, "")),
+                    "tipo": "OFICINA",
+                    "ubicacion": "OFICINA",
+                    "departamento": str(r.get(COLF_DEPT, "")),
+                    "provincia": str(r.get(COLF_PROV, "")),
+                    "distrito": str(r.get(COLF_DIST, "")),
+                    "direccion": "No disponible (a incorporar)",
+                    "capa": "",
+                }
+            )
+
+        return jsonify(
+            {
+                "puntos": puntos,
+                "total_atms": total_oficinas,
+                "total_oficinas": total_oficinas,
+                "total_islas": 0,
+                "total_disp": 0,
+                "total_mon": 0,
+                "total_rec": 0,
+                "promedio_total": promedio_total,
+                "total_agentes": 0,
+                "total_capa_A1": 0,
+                "total_capa_A2": 0,
+                "total_capa_A3": 0,
+                "total_capa_B": 0,
+                "total_capa_C": 0,
+            }
+        )
+
+    # Capa desconocida
     return jsonify(
         {
             "puntos": [],
@@ -681,7 +799,7 @@ def api_points():
 
 
 # ============================================================
-# 8. TEMPLATE MAPA — PARTE 2
+# 8. TEMPLATE MAPA — FRONTEND COMPLETO
 # ============================================================
 
 TEMPLATE_MAPA = """
@@ -800,7 +918,7 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
-/* Panel ATM seleccionado */
+/* Panel seleccionado */
 .side-card-atm{
   font-family:"Consolas","Fira Code",monospace;
   white-space:pre-line;
@@ -824,7 +942,7 @@ input[type="checkbox"]{
   cursor:pointer;
 }
 
-/* Glow suave cuando hay ATM seleccionado */
+/* Glow suave cuando hay selección */
 @keyframes panelGlow{
   0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
   50%{box-shadow:0 0 18px rgba(20,100,165,0.55);}
@@ -934,7 +1052,7 @@ input[type="checkbox"]{
         <b>Promedio total:</b> <span id="resPromedio">0</span>
       </div>
 
-      <!-- Bloque ISLAS / OFICINAS -->
+      <!-- Bloque ISLAS -->
       <div id="bloqueIslasOfi">
         <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
         <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
@@ -944,6 +1062,16 @@ input[type="checkbox"]{
         <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
         <div class="muted">Monedero: <span id="resMon">0</span></div>
         <div class="muted">Reciclador: <span id="resRec">0</span></div>
+      </div>
+
+      <!-- Bloque OFICINAS -->
+      <div id="bloqueOficinas" class="hidden" style="margin-top:8px;">
+        <div class="muted" style="margin-top:2px;">
+          Cantidad total de oficinas: <span id="resOficinasCount">0</span>
+        </div>
+        <div class="muted" style="margin-top:4px;">
+          Total del promedio de TRX: <span id="resOficinasProm">0</span>
+        </div>
       </div>
 
       <!-- Bloque AGENTES -->
@@ -958,11 +1086,10 @@ input[type="checkbox"]{
 
       <div style="margin-top:10px; font-weight:600;">Leyenda</div>
       <div class="muted" id="legendBox">
-        <!-- Se rellena por JS según la capa -->
       </div>
     </div>
 
-    <!-- PANEL ATM/AGENTE SELECCIONADO -->
+    <!-- PANEL DETALLE -->
     <div id="panelATM" class="side-card side-card-atm hidden">
       <h3 id="panelATMTitle">Panel del ATM seleccionado</h3>
       <div id="atmDetalle" style="font-size:12px; margin-top:4px;"></div>
@@ -1015,7 +1142,12 @@ const resMon             = document.getElementById("resMon");
 const resRec             = document.getElementById("resRec");
 
 const bloqueIslasOfi     = document.getElementById("bloqueIslasOfi");
+const bloqueOficinas     = document.getElementById("bloqueOficinas");
 const bloqueAgentes      = document.getElementById("bloqueAgentes");
+
+const resOficinasCount   = document.getElementById("resOficinasCount");
+const resOficinasProm    = document.getElementById("resOficinasProm");
+
 const resAgentesTotal    = document.getElementById("resAgentesTotal");
 const resCapaA1          = document.getElementById("resCapaA1");
 const resCapaA2          = document.getElementById("resCapaA2");
@@ -1024,42 +1156,39 @@ const resCapaB           = document.getElementById("resCapaB");
 const resCapaC           = document.getElementById("resCapaC");
 const legendBox          = document.getElementById("legendBox");
 
-// Panel ATM/AGENTE
-const panelATM    = document.getElementById("panelATM");
+// Panel detalle
+const panelATM      = document.getElementById("panelATM");
 const panelATMTitle = document.getElementById("panelATMTitle");
-const atmDetalle  = document.getElementById("atmDetalle");
-const btnVolver   = document.getElementById("btnVolver");
+const atmDetalle    = document.getElementById("atmDetalle");
+const btnVolver     = document.getElementById("btnVolver");
 
-// Títulos según capa + leyenda + bloques
+// Config inicial según capa
 if(TIPO_MAPA === "oficinas"){
   panelResumenTitulo.textContent = "Resumen — Oficinas";
-  resTituloBloque.textContent    = "ATMs totales (capa oficinas)";
-  bloqueIslasOfi.classList.remove("hidden");
+  bloqueIslasOfi.classList.add("hidden");
   bloqueAgentes.classList.add("hidden");
+  bloqueOficinas.classList.remove("hidden");
   legendBox.innerHTML = `
-    <div>🔴 ATM ≥ 4</div>
-    <div>🟢 ATM ≤ 3</div>
     <div>🏦 Oficina</div>
-    <div>🌐 Isla</div>
-    <div>🧍 Agente</div>
   `;
-  panelATMTitle.textContent = "Panel del ATM seleccionado";
+  panelATMTitle.textContent = "Panel de la oficina seleccionada";
 } else if(TIPO_MAPA === "islas"){
   panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
   resTituloBloque.textContent    = "ATMs totales (unificado)";
   bloqueIslasOfi.classList.remove("hidden");
   bloqueAgentes.classList.add("hidden");
+  bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
     <div>🔴 ATM ≥ 4</div>
     <div>🟢 ATM ≤ 3</div>
     <div>🏦 Oficina</div>
     <div>🌐 Isla</div>
-    <div>🧍 Agente</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
   bloqueIslasOfi.classList.add("hidden");
+  bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
   legendBox.innerHTML = `
     <div>🔵 Capa A1</div>
@@ -1129,15 +1258,14 @@ selDiv.onchange  = ()=> fetchPoints();
 function getIcon(pt){
   const ubic = (pt.ubicacion || "").toUpperCase();
 
-  // Íconos especiales para AGENTES por CAPA
   if(TIPO_MAPA === "agentes"){
     const capa = (pt.capa || "").toUpperCase();
     let color = "#999999";
-    if(capa === "A1") color = "#4da6ff";   // azul claro
-    else if(capa === "A2") color = "#b266ff"; // violeta
-    else if(capa === "A3") color = "#ffd633"; // amarillo
-    else if(capa === "B")  color = "#33cc33"; // verde
-    else if(capa === "C")  color = "#ff9933"; // naranja
+    if(capa === "A1") color = "#4da6ff";
+    else if(capa === "A2") color = "#b266ff";
+    else if(capa === "A3") color = "#ffd633";
+    else if(capa === "B")  color = "#33cc33";
+    else if(capa === "C")  color = "#ff9933";
 
     return L.divIcon({
       className:"icon-round",
@@ -1147,7 +1275,6 @@ function getIcon(pt){
     });
   }
 
-  // Lógica original de islas/oficinas
   if(ubic.includes("OFICINA")){
     return L.divIcon({
       className:"icon-bank",
@@ -1182,14 +1309,11 @@ function getIcon(pt){
 }
 
 // ---------------- Panel seleccionado ----------
-
 function showATMPanel(pt){
   const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
-
   let texto = "";
 
   if(TIPO_MAPA === "agentes"){
-    // Panel para AGENTES
     texto = `
 _____________________
  AGENTE ${pt.atm}
@@ -1212,8 +1336,24 @@ _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
+  } else if(TIPO_MAPA === "oficinas"){
+    texto = `
+_____________________
+ OFICINA ${pt.atm}
+_____________________
+
+• Nombre: ${pt.nombre}
+• Dirección: ${pt.direccion}
+• División: ${pt.division}
+
+• Dpto/Prov/Dist:
+  ${lineaUbic}
+
+_____________________
+Promedio TRX: ${pt.promedio}
+_____________________
+`;
   } else {
-    // Panel original para ISLAS / OFICINAS
     texto = `
 _____________________
  ATM ${pt.atm}
@@ -1256,7 +1396,6 @@ async function fetchPoints(){
   const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
   infoBox.textContent = "...";
 
-  // Siempre, al cambiar filtros, volvemos al panel resumen
   panelATM.classList.add("hidden");
   panelATM.classList.remove("glow");
   panelResumen.classList.remove("hidden");
@@ -1275,7 +1414,6 @@ async function fetchPoints(){
 
   pts.forEach(pt => {
     const icon = getIcon(pt);
-
     const m = L.marker([pt.lat, pt.lon], {icon});
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
@@ -1300,20 +1438,20 @@ async function fetchPoints(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // Actualizar resumen con datos del backend
   const prom = data.promedio_total || 0;
   resPromedio.textContent = Math.round(prom).toString();
 
   if(TIPO_MAPA === "agentes"){
-    // Resumen para AGENTES
     resAgentesTotal.textContent = (data.total_agentes || data.total_atms || 0).toString();
     resCapaA1.textContent = (data.total_capa_A1 || 0).toString();
     resCapaA2.textContent = (data.total_capa_A2 || 0).toString();
     resCapaA3.textContent = (data.total_capa_A3 || 0).toString();
     resCapaB.textContent  = (data.total_capa_B  || 0).toString();
     resCapaC.textContent  = (data.total_capa_C  || 0).toString();
+  } else if(TIPO_MAPA === "oficinas"){
+    resOficinasCount.textContent = (data.total_oficinas || data.total_atms || 0).toString();
+    resOficinasProm.textContent  = Math.round(data.promedio_total || 0).toString();
   } else {
-    // Resumen original para ISLAS / OFICINAS
     resTotal.textContent = (data.total_atms || 0).toString();
     resOfi.textContent   = (data.total_oficinas || 0).toString();
     resIsla.textContent  = (data.total_islas || 0).toString();
@@ -1331,3 +1469,6 @@ fetchPoints();
 </body>
 </html>
 """
+
+if __name__ == "__main__":
+    app.run(debug=True)
