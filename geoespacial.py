@@ -216,38 +216,146 @@ def login_required(f):
     return wrapped
 
 
-# ============================================================
-# 6. SELECTOR — MISMO QUE TIENES
-# ============================================================
 
 # ============================================================
-# 6. RUTA DEL MAPA POR CAPA (OFICINAS / ISLAS / AGENTES)
+# 6. RUTAS LOGIN / LOGOUT / SELECTOR
 # ============================================================
-@app.route("/mapa/<tipo>")
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Acceso Seguro — BBVA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{
+    margin:0; padding:0; height:100vh; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    background:#003366;
+    font-family:Arial,Helvetica,sans-serif;
+}
+.box{
+    background:white;
+    padding:30px 35px;
+    border-radius:12px;
+    width:340px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.25);
+}
+h2{color:#1464A5; margin-bottom:18px;}
+input{
+    width:100%; padding:10px; margin:8px 0;
+    border-radius:8px; border:1px solid #ccc;
+}
+button{
+    width:100%; padding:10px;
+    background:#1464A5; color:white;
+    border:none; border-radius:8px;
+    cursor:pointer;
+    margin-top:8px;
+}
+.error{color:red; font-size:14px; margin-bottom:8px;}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>Iniciar sesión</h2>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post">
+      <input name="username" placeholder="Usuario" required>
+      <input name="password" type="password" placeholder="Contraseña" required>
+      <button>Entrar</button>
+    </form>
+  </div>
+</body>
+</html>
+"""
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        u = request.form.get("username")
+        p = request.form.get("password")
+        if u == APP_USER and p == APP_PASS:
+            session.clear()
+            session["user"] = u
+            return redirect(url_for("selector"))
+        return render_template_string(LOGIN_TEMPLATE, error="Credenciales incorrectas")
+    return render_template_string(LOGIN_TEMPLATE)
+
+
+@app.route("/logout")
 @login_required
-def mapa_tipo(tipo):
+def logout():
+    session.clear()
+    resp = redirect(url_for("login"))
+    resp.set_cookie("session", "", expires=0)
+    return resp
 
-    if tipo not in ["oficinas", "islas", "agentes"]:
-        return "No existe esa capa", 404
 
-    # Centro inicial del mapa (Lima si no quieres mover nada)
-    initial_center = [-12.0464, -77.0428]
-    initial_zoom = 6
+SELECTOR_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Selector de Capas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{
+  background:#eef4fb; margin:0; padding:40px 20px;
+  font-family:Arial,Helvetica,sans-serif;
+}
+.grid{
+  margin-top:40px;
+  display:flex; justify-content:center; gap:40px; flex-wrap:wrap;
+}
+.card{
+  width:300px; height:240px;
+  background:white;
+  border-radius:16px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.20);
+  padding:12px;
+  cursor:pointer;
+  transition:0.2s;
+}
+.card:hover{
+  transform:scale(1.03);
+}
+img{width:100%; border-radius:12px;}
+h2{text-align:center; color:#072146;}
+</style>
+</head>
+<body>
 
-    return render_template_string(
-        TEMPLATE_MAPA,
-        tipo_mapa=tipo,
-        departamentos=DEPARTAMENTOS,
-        provincias_by_dept=PROVINCIAS_BY_DEPT,
-        dist_by_prov=DIST_BY_PROV,
-        div_by_dept=DIV_BY_DEPT,
-        div_by_prov=DIV_BY_PROV,
-        div_by_dist=DIV_BY_DIST,
-        divisiones=DIVISIONES,
-        initial_center=initial_center,
-        initial_zoom=initial_zoom,
-    )
+<h2>Seleccione una capa</h2>
 
+<div class="grid">
+
+  <div class="card" onclick="location.href='/mapa/oficinas'">
+    <img src="{{ url_for('static', filename='oficina.png') }}">
+    <div style="text-align:center; margin-top:10px;">🏦 Oficinas</div>
+  </div>
+
+  <div class="card" onclick="location.href='/mapa/islas'">
+    <img src="{{ url_for('static', filename='isla.png') }}">
+    <div style="text-align:center; margin-top:10px;">🌐 Islas</div>
+  </div>
+
+  <div class="card" onclick="location.href='/mapa/agentes'">
+    <img src="{{ url_for('static', filename='agente.png') }}">
+    <div style="text-align:center; margin-top:10px;">🧍 Agentes</div>
+  </div>
+
+</div>
+
+</body>
+</html>
+"""
+
+@app.route("/selector")
+@login_required
+def selector():
+    return render_template_string(SELECTOR_TEMPLATE)
 # ============================================================
 # 7. API /api/points — AHORA CON CAPA AGENTES
 # ============================================================
