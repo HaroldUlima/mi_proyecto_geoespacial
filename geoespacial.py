@@ -1,3 +1,4 @@
+
 # ============================================================
 #   PARTE 1 / 2  —  BACKEND COMPLETO + LOGIN + SELECTOR
 # ============================================================
@@ -984,7 +985,7 @@ async function fetchPoints(){
   pts.forEach(pt => {
     const icon = getIcon(pt);
     const popup = `
-      <div class="popup-title">${pt.nombre}</div>
+      
       <div class="popup-row"><b>ATM:</b> ${pt.atm}</div>
       <div class="popup-row"><b>Dirección:</b> ${pt.direccion}</div>
       <div class="popup-row"><b>División:</b> ${pt.division}</div>
@@ -995,7 +996,7 @@ async function fetchPoints(){
     `;
 
     const m = L.marker([pt.lat, pt.lon], {icon});
-    m.bindPopup(popup);
+    
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
 
