@@ -1,5 +1,5 @@
 # ============================================================
-#   PARTE 1 / 2  —  BACKEND COMPLETO + LOGIN + SELECTOR
+#   PARTE 1 / 2 — BACKEND COMPLETO + LOGIN + SELECTOR + API
 # ============================================================
 
 import os
@@ -39,9 +39,9 @@ def get_address(lat, lon):
     return address_cache.get(key, "Dirección no encontrada")
 
 
-# ============================================
-# FUNCIÓN CLAVE — NORMALIZAR LOS VALORES
-# ============================================
+# ============================================================
+# FUNCIÓN — NORMALIZAR VALORES DE TEXTO
+# ============================================================
 def normalize_value(val):
     val = str(val).upper().strip()
     val = unicodedata.normalize("NFKD", val)
@@ -63,7 +63,7 @@ if not os.path.exists(excel_main):
 raw = pd.read_excel(excel_main)
 
 
-# ---------------- Normalizador de nombres de columna -----------
+# -------- Normalizador de nombres de columna --------
 def normalize_col(s):
     s = str(s)
     s = unicodedata.normalize("NFKD", s)
@@ -84,9 +84,9 @@ def find_col(keys):
     return None
 
 
-# ---------------- Detectar columnas principales ----------------
+# ========= Identificación automática de columnas =========
 COL_ATM = find_col(["COD_ATM", "ATM"]) or "ATM"
-COL_NAME = find_col(["NOMBRE", "CAJERO"]) or None
+COL_NAME = find_col(["NOMBRE"]) or None
 COL_DEPT = find_col(["DEPARTAMENTO"]) or "DEPARTAMENTO"
 COL_PROV = find_col(["PROVINCIA"]) or "PROVINCIA"
 COL_DIST = find_col(["DISTRITO"]) or "DISTRITO"
@@ -97,7 +97,7 @@ COL_TIPO = find_col(["TIPO"]) or "TIPO"
 COL_UBIC = find_col(["UBICACION", "UBICACIÓN", "UBICACION INTERNA"]) or "UBICACION_INTERNA"
 PROM_COL = find_col(["PROMEDIO", "PROM"]) or None
 
-# Si no existe columna de promedio, creamos una falsa
+# Si no existe columna de promedio, crear una falsa
 if PROM_COL is None:
     raw["PROM_FAKE"] = 0.0
     PROM_COL = "PROM_FAKE"
@@ -112,19 +112,14 @@ for c in [
 
 df = raw.copy()
 
-# ==============================
-# NORMALIZAR VALORES AQUÍ
-# ==============================
+# Normalizar textos
 for col in [COL_DEPT, COL_PROV, COL_DIST, COL_DIV, COL_UBIC, COL_TIPO]:
     df[col] = df[col].astype(str).apply(normalize_value)
 
 if COL_NAME:
     df[COL_NAME] = df[COL_NAME].astype(str).apply(normalize_value)
 
-
-# ==============================
-# Limpiar coordenadas
-# ==============================
+# Normalizar coordenadas
 df[COL_LAT] = (
     df[COL_LAT].astype(str)
     .str.replace(",", ".", regex=False)
@@ -146,7 +141,7 @@ df[PROM_COL] = pd.to_numeric(df[PROM_COL], errors="coerce").fillna(0.0)
 
 
 # ============================================================
-# 3. LISTAS PARA FILTROS — JERARQUÍA COMPLETA
+# 3. FILTROS JERÁRQUICOS
 # ============================================================
 DEPARTAMENTOS = sorted(df[COL_DEPT].unique().tolist())
 
@@ -174,26 +169,86 @@ DIVISIONES = sorted(df[COL_DIV].unique().tolist())
 
 
 # ============================================================
-# 4. FLASK + LOGIN (SIN CAMBIOS)
+# 4. FLASK + LOGIN
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
+
 
 APP_USER = os.getenv("APP_USERNAME")
 APP_PASS = os.getenv("APP_PASSWORD")
 
 if not APP_USER or not APP_PASS:
-    print("⚠ APP_USERNAME/APP_PASSWORD no configurados")
+    print("⚠ WARNING: APP_USERNAME o APP_PASSWORD no configurados en Render")
 
 
-@app.after_request
-def add_header(resp):
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return resp
+# ============================================================
+# LOGIN REQUIRED DECORATOR
+# ============================================================
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "logged" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return wrapper
 
 
-# LOGIN_TEMPLATE igual...
-# SELECTOR_TEMPLATE igual...
+# ============================================================
+# LOGIN PAGE
+# ============================================================
+LOGIN_TEMPLATE = """
+<!doctype html>
+<html><body>
+<form method="post" style="margin:100px auto; width:300px;">
+  <h3>Acceso</h3>
+  <input type="text" name="username" placeholder="Usuario" required><br><br>
+  <input type="password" name="password" placeholder="Contraseña" required><br><br>
+  <button type="submit">Ingresar</button>
+</form>
+</body></html>
+"""
+
+
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        u = request.form.get("username")
+        p = request.form.get("password")
+
+        if u == APP_USER and p == APP_PASS:
+            session["logged"] = True
+            return redirect(url_for("selector"))
+
+        return render_template_string(LOGIN_TEMPLATE)
+
+    return render_template_string(LOGIN_TEMPLATE)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ============================================================
+# SELECTOR DE CAPAS
+# ============================================================
+SELECTOR_TEMPLATE = """
+<!doctype html>
+<html><body style="text-align:center; margin-top:100px;">
+<h2>Seleccionar mapa</h2>
+<a href="/mapa/oficinas">Oficinas</a><br><br>
+<a href="/mapa/islas">Islas</a><br><br>
+<a href="/mapa/agentes">Agentes</a>
+</body></html>
+"""
+
+
+@app.route("/selector")
+@login_required
+def selector():
+    return render_template_string(SELECTOR_TEMPLATE)
 
 
 # ============================================================
@@ -223,7 +278,7 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API POINTS — AHORA FUNCIONA CORRECTO
+# 7. API POINTS — FILTROS + DATOS
 # ============================================================
 @app.route("/api/points")
 @login_required
@@ -247,7 +302,7 @@ def api_points():
     if divi:
         dff = dff[dff[COL_DIV] == divi]
 
-    # CAPA ISLAS = TODOS
+    # SOLO CAPA ISLAS MUESTRA DATOS (por ahora)
     if tipo_mapa == "islas":
         dff_layer = dff
     else:
@@ -291,10 +346,10 @@ def api_points():
         "suma_total": suma_total,
     })
 
+# ============================================================
+# 8. TEMPLATE MAPA EN PARTE 2
+# ============================================================
 
-# ============================================================
-# 8. TEMPLATE MAPA VIENE EN LA PARTE 2
-# ============================================================
 
 
 TEMPLATE_MAPA = """
@@ -450,6 +505,20 @@ input[type="checkbox"]{
 /* Ocultar */
 .hidden{ display:none; }
 
+/* Iconos personalizados */
+.icon-bank div{
+  font-size:30px;
+}
+.icon-isla div{
+  font-size:30px;
+  color:deepskyblue;
+}
+.icon-round div{
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  border:2px solid white;
+}
 </style>
 </head>
 
@@ -508,13 +577,13 @@ input[type="checkbox"]{
   <div id="map"></div>
 
   <div class="side">
-    <!-- PANEL RESUMEN -->
+    <!-- PANEL RESUMEN ESTÁTICO -->
     <div id="panelResumen" class="side-card">
-      <div class="side-title" id="panelResumenTitulo">Resumen</div>
+      <div class="side-title">Resumen</div>
 
-      <div> <b>Suma total:</b> <span id="resPromedio">0</span> </div>
+      <div><b>Suma total del promedio:</b> <span id="resPromedio">0</span></div>
 
-      <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
+      <div style="margin-top:6px; font-weight:600;">ATMs totales</div>
       <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
       <div class="muted">ATMs en oficinas: <span id="resOfi">0</span></div>
       <div class="muted">ATMs en islas: <span id="resIsla">0</span></div>
@@ -565,7 +634,6 @@ const heat    = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
 heat.addTo(map);
 
-
 // Combos
 const selDep  = document.getElementById("selDepartamento");
 const selProv = document.getElementById("selProvincia");
@@ -575,15 +643,14 @@ const chkHeat = document.getElementById("chkHeat");
 const infoBox = document.getElementById("infoCount");
 
 // Panel resumen
-const panelResumen      = document.getElementById("panelResumen");
-const resPromedio       = document.getElementById("resPromedio");
-const resTituloBloque   = document.getElementById("resTituloBloque");
-const resTotal          = document.getElementById("resTotal");
-const resOfi            = document.getElementById("resOfi");
-const resIsla           = document.getElementById("resIsla");
-const resDisp           = document.getElementById("resDisp");
-const resMon            = document.getElementById("resMon");
-const resRec            = document.getElementById("resRec");
+const panelResumen = document.getElementById("panelResumen");
+const resPromedio  = document.getElementById("resPromedio");
+const resTotal     = document.getElementById("resTotal");
+const resOfi       = document.getElementById("resOfi");
+const resIsla      = document.getElementById("resIsla");
+const resDisp      = document.getElementById("resDisp");
+const resMon       = document.getElementById("resMon");
+const resRec       = document.getElementById("resRec");
 
 // Panel ATM
 const panelATM   = document.getElementById("panelATM");
@@ -638,7 +705,6 @@ function updateDivisiones(){
   {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
 }
 
-
 // eventos combos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
@@ -671,7 +737,7 @@ function getIcon(pt){
 
   return L.divIcon({
     className:"icon-round",
-    html:`<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>`,
+    html:`<div style="background:${color};"></div>`,
     iconSize:[14,14],
     iconAnchor:[7,7]
   });
@@ -737,10 +803,9 @@ async function fetchPoints(){
 
   pts.forEach(pt => {
     const icon = getIcon(pt);
-
     const m = L.marker([pt.lat, pt.lon], {icon});
 
-    // SIN POPUP: solo panel lateral
+    // SIN POPUP → solo panel lateral
     m.on("click", () => showATMPanel(pt));
 
     markers.addLayer(m);
@@ -751,9 +816,13 @@ async function fetchPoints(){
 
   heat.setLatLngs(heatPts);
 
-  if(bounds.length === 1) map.setView(bounds[0], 16);
-  else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
-  else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
+  if(bounds.length === 1){
+    map.setView(bounds[0], 16);
+  }else if(bounds.length > 1){
+    map.fitBounds(bounds, {padding:[20,20]});
+  }else{
+    map.setView(INITIAL_CENTER, INITIAL_ZOOM);
+  }
 
   // Heatmap ON/OFF
   if(chkHeat.checked){
@@ -762,7 +831,7 @@ async function fetchPoints(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // ---------------- ACTUALIZAR RESUMEN ----------------
+  // ACTUALIZAR RESUMEN (panel estático)
   resPromedio.textContent = Math.round(data.suma_total || 0).toString();
   resTotal.textContent    = data.total_atms;
   resOfi.textContent      = data.total_oficinas;
@@ -770,12 +839,10 @@ async function fetchPoints(){
   resDisp.textContent     = data.total_disp;
   resMon.textContent      = data.total_mon;
   resRec.textContent      = data.total_rec;
-
 }
 
 updateProvincias();
 fetchPoints();
-
 </script>
 
 </body>
