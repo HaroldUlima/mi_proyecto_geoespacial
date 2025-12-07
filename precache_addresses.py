@@ -1040,6 +1040,3 @@ fetchPoints();
 </body>
 </html>
 """
-
-
-
