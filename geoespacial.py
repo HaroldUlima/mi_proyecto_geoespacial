@@ -49,7 +49,6 @@ excel_main = os.path.join(BASE_DIR, "data", "Mapa Geoespacial ATM (1) (1).xlsx")
 if not os.path.exists(excel_main):
     raise FileNotFoundError("No encontré archivo Excel de ATMs.")
 
-
 raw = pd.read_excel(excel_main)
 
 
@@ -972,13 +971,6 @@ input[type="checkbox"]{
 }
 
 /* Iconos personalizados */
-.icon-bank div{
-  font-size:30px;
-}
-.icon-isla div{
-  font-size:30px;
-  color:deepskyblue;
-}
 .icon-round div{
   width:14px;
   height:14px;
@@ -1112,6 +1104,33 @@ const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
+// URLs de iconos (mismas imágenes del selector de capas)
+const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
+const ICON_ISLA_URL    = "{{ url_for('static', filename='isla.png') }}";
+const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
+
+// Iconos Leaflet reutilizables
+const ICON_OFICINA = L.icon({
+  iconUrl: ICON_OFICINA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_ISLA = L.icon({
+  iconUrl: ICON_ISLA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_AGENTE = L.icon({
+  iconUrl: ICON_AGENTE_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   { maxZoom:19 }).addTo(map);
@@ -1179,10 +1198,8 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🔴 ATM ≥ 4</div>
-    <div>🟢 ATM ≤ 3</div>
-    <div>🏦 Oficina</div>
-    <div>🌐 Isla</div>
+    <div>🏦 Oficina (icono oficina)</div>
+    <div>🌐 Isla (icono isla)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 } else if(TIPO_MAPA === "agentes"){
@@ -1191,12 +1208,7 @@ if(TIPO_MAPA === "oficinas"){
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
   legendBox.innerHTML = `
-    <div>🔵 Capa A1</div>
-    <div>🟣 Capa A2</div>
-    <div>🟡 Capa A3</div>
-    <div>🟢 Capa B</div>
-    <div>🟠 Capa C</div>
-    <div>🧍 Agente</div>
+    <div>🧍 Agente (icono agente)</div>
   `;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
@@ -1258,54 +1270,32 @@ selDiv.onchange  = ()=> fetchPoints();
 function getIcon(pt){
   const ubic = (pt.ubicacion || "").toUpperCase();
 
-  if(TIPO_MAPA === "agentes"){
-    const capa = (pt.capa || "").toUpperCase();
-    let color = "#999999";
-    if(capa === "A1") color = "#4da6ff";
-    else if(capa === "A2") color = "#b266ff";
-    else if(capa === "A3") color = "#ffd633";
-    else if(capa === "B")  color = "#33cc33";
-    else if(capa === "C")  color = "#ff9933";
-
-    return L.divIcon({
-      className:"icon-round",
-      html:`<div style="background:${color};"></div>`,
-      iconSize:[14,14],
-      iconAnchor:[7,7]
-    });
+  // Capa agentes: siempre icono de agente
+  if (TIPO_MAPA === "agentes") {
+    return ICON_AGENTE;
   }
 
-  if(ubic.includes("OFICINA")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🏦</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
+  // Capa islas/oficinas: depende de la ubicación
+  if (ubic.includes("OFICINA")) {
+    return ICON_OFICINA;
   }
-  if(ubic.includes("ISLA")){
-    return L.divIcon({
-      className:"icon-isla",
-      html:"<div>🌐</div>",
-      iconSize:[32,32],
-      iconAnchor:[16,16]
-    });
+  if (ubic.includes("ISLA")) {
+    return ICON_ISLA;
   }
-  if(ubic.includes("AGENTE")){
-    return L.divIcon({
-      className:"icon-bank",
-      html:"<div>🧍</div>",
-      iconSize:[30,30],
-      iconAnchor:[15,15]
-    });
+  if (ubic.includes("AGENTE")) {
+    return ICON_AGENTE;
   }
-  const color = (pt.promedio || 0) >= 4 ? "red" : "green";
-  return L.divIcon({
-    className:"icon-round",
-    html:`<div style="background:${color};"></div>`,
-    iconSize:[14,14],
-    iconAnchor:[7,7]
-  });
+
+  // Fallback por capa
+  if (TIPO_MAPA === "oficinas") {
+    return ICON_OFICINA;
+  }
+  if (TIPO_MAPA === "islas") {
+    return ICON_ISLA;
+  }
+
+  // Fallback genérico
+  return ICON_ISLA;
 }
 
 // ---------------- Panel seleccionado ----------
