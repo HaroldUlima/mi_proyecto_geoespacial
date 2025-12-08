@@ -534,7 +534,7 @@ h1{
 
   <div class="card" onclick="location.href='/mapa/islas'">
     <img src="{{ url_for('static', filename='isla.png') }}" alt="Atms BBVA">
-    <div class="card-title"><span class="icon">🌐</span>Islas</div>
+    <div class="card-title"><span class="icon">🌐</span>Atms</div>
   </div>
 
   <div class="card" onclick="location.href='/mapa/agentes'">
@@ -555,6 +555,7 @@ def selector():
     return render_template_string(SELECTOR_TEMPLATE)
 
 
+
 # ============================================================
 # 6. RUTA DEL MAPA POR CAPA
 # ============================================================
@@ -564,6 +565,17 @@ def mapa_tipo(tipo):
     if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
+    # --- Cambiar nombres visibles ---
+    nombres_capas = {
+        "islas": "ATMs",
+        "oficinas": "Oficinas",
+        "agentes": "Agentes"
+    }
+
+    # Esto cambiará el texto del título:
+    nombre_visible = nombres_capas.get(tipo, tipo)
+
+    # ---------------------------------
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
 
     # Elegir listas SEGÚN LA CAPA (sin mezclar)
@@ -594,7 +606,7 @@ def mapa_tipo(tipo):
 
     return render_template_string(
         TEMPLATE_MAPA,
-        tipo_mapa=tipo,
+        tipo_mapa=nombre_visible,   # ← CAMBIO CLAVE
         departamentos=departamentos,
         provincias_by_dept=provincias_by_dept,
         dist_by_prov=dist_by_prov,
@@ -605,7 +617,6 @@ def mapa_tipo(tipo):
         initial_center=initial_center,
         initial_zoom=6,
     )
-
 
 # ============================================================
 # 7. API /api/points — ISLAS + AGENTES + OFICINAS
@@ -1093,7 +1104,7 @@ input[type="checkbox"]{
     <div style="flex:1"></div>
 
     <div style="font-size:13px; color:var(--muted);">
-      Mostrando <span id="infoCount">--</span> ATMs
+      Mostrando <span id="infoCount">--</span> Atms/Agentes/Oficinas
     </div>
   </div>
 </div>
