@@ -533,7 +533,7 @@ h1{
   </div>
 
   <div class="card" onclick="location.href='/mapa/islas'">
-    <img src="{{ url_for('static', filename='isla.png') }}" alt="Islas BBVA">
+    <img src="{{ url_for('static', filename='isla.png') }}" alt="Atms BBVA">
     <div class="card-title"><span class="icon">🌐</span>Islas</div>
   </div>
 
@@ -1347,7 +1347,7 @@ if(TIPO_MAPA === "oficinas"){
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
     <div>🏦 Oficina (icono oficina)</div>
-    <div>🌐 Isla (icono isla)</div>
+    <div>🌐 Atms isla (icono Atms isla)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 
