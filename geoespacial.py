@@ -1145,6 +1145,27 @@ input[type="checkbox"]{
       <div style="margin-top:10px; font-weight:600;">Leyenda</div>
       <div class="muted" id="legendBox">
       </div>
+
+      <!-- LEYENDA HEATMAP -->
+      <div style="margin-top:10px; font-weight:600;">Leyenda Heatmap</div>
+      <div id="legendHeatmap" style="font-size:12px; margin-left:4px; line-height:18px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="width:16px;height:16px;background:#ff0000;border-radius:3px;display:inline-block;"></span>
+          Alta concentración (3+ puntos)
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="width:16px;height:16px;background:#ffae00;border-radius:3px;display:inline-block;"></span>
+          Media concentración (2 puntos)
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="width:16px;height:16px;background:#ffff66;border-radius:3px;display:inline-block;"></span>
+          Baja concentración (1 punto)
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="width:16px;height:16px;background:#b6ffb6;border-radius:3px;display:inline-block;"></span>
+          Sin puntos cercanos
+        </div>
+      </div>
     </div>
 
     <!-- PANEL DETALLE -->
@@ -1157,7 +1178,7 @@ input[type="checkbox"]{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -1205,6 +1226,7 @@ const markers = L.markerClusterGroup({chunkedLoading:true});
 const heat    = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
 heat.addTo(map);
+heat.bringToFront();   // heatmap por encima de los íconos
 
 // Combos
 const selDep  = document.getElementById("selDepartamento");
@@ -1450,6 +1472,39 @@ btnVolver.addEventListener("click", () => {
   panelResumen.classList.remove("hidden");
 });
 
+// -------------------------------------------
+// HEATMAP INTELIGENTE POR DENSIDAD DE PUNTOS
+// -------------------------------------------
+function calcularPesoDensidad(pts, idxActual) {
+  const R = 6371e3;     // radio tierra en metros
+  const distMax = 50;   // metros para considerar puntos "juntos"
+
+  const p1 = pts[idxActual];
+  let vecinos = 0;
+
+  for (let i = 0; i < pts.length; i++) {
+    if (i === idxActual) continue;
+
+    const p2 = pts[i];
+
+    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+    const dLon = (p2.lon - p1.lon) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(p1.lat * Math.PI / 180) *
+              Math.cos(p2.lat * Math.PI / 180) *
+              Math.sin(dLon / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+
+    if (d <= distMax) vecinos++;
+  }
+
+  if (vecinos >= 2) return 3.0;  // 🔴 rojo (3 o más puntos cerca)
+  if (vecinos === 1) return 1.5; // 🟡 amarillo (2 puntos)
+  return 0.3;                    // 🟢 verde suave (sin vecinos)
+}
+
 // ------------------- FETCH + RENDER ----------------
 async function fetchPoints(){
   const d  = selDep.value;
@@ -1473,7 +1528,6 @@ async function fetchPoints(){
   markers.clearLayers();
   heat.setLatLngs([]);
 
-  let heatPts = [];
   let bounds  = [];
 
   pts.forEach(pt => {
@@ -1482,10 +1536,14 @@ async function fetchPoints(){
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
 
-    heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
   });
 
+  // HEATMAP INTELIGENTE (por densidad de puntos)
+  const heatPts = pts.map((pt, idx) => {
+    const peso = calcularPesoDensidad(pts, idx);
+    return [pt.lat, pt.lon, peso];
+  });
   heat.setLatLngs(heatPts);
 
   if(bounds.length === 1){
@@ -1498,6 +1556,7 @@ async function fetchPoints(){
 
   if(chkHeat.checked){
     if(!map.hasLayer(heat)) heat.addTo(map);
+    heat.bringToFront();
   }else{
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
