@@ -1168,36 +1168,41 @@ const DIV_BY_PROV  = {{ div_by_prov|tojson }};
 const DIV_BY_DIST  = {{ div_by_dist|tojson }};
 const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
+
+
+
+
+
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
-// URLs de iconos (mismas imágenes del selector de capas)
-const ICON_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
-const ICON_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
+// ======================================================
+//  ICONOS SEPARADOS POR CAPA — CORRECCIÓN DEFINITIVA
+// ======================================================
+
+// ---- CAPA ISLAS (ATMs dentro de oficina e islas) ----
+const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
+const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
+
+// ---- CAPA OFICINAS ----
+const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
+
+// ---- CAPA AGENTES ----
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
-// Iconos Leaflet reutilizables
-const ICON_OFICINA = L.icon({
-  iconUrl: ICON_OFICINA_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
 
-const ICON_ISLA = L.icon({
-  iconUrl: ICON_ISLA_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
+// ICONOS LEAFLET...
+// (tu bloque completo aquí)
 
-const ICON_AGENTE = L.icon({
-  iconUrl: ICON_AGENTE_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
+// LÓGICA DE getIcon()
+// (tu bloque completo aquí)
 
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
+
+
+
+
+
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   { maxZoom:19 }).addTo(map);
 
