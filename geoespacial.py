@@ -620,6 +620,10 @@ def api_points():
     dist = request.args.get("distrito", "").upper().strip()
     divi = request.args.get("division", "").upper().strip()
 
+    # 🔵 NUEVOS FILTROS SOLO PARA CAPA ISLAS (ATMs)
+    tipo_atm = request.args.get("tipo_atm", "").upper().strip()
+    ubic_atm = request.args.get("ubic_atm", "").upper().strip()
+
     # ---------------------- CAPA ISLAS (ATMs) ----------------------
     if tipo_mapa == "islas":
         dff = df.copy()
@@ -639,6 +643,14 @@ def api_points():
             dff = dff[dff[COL_DIST] == dist]
         if divi:
             dff = dff[dff[COL_DIV] == divi]
+
+        # 🔵 Filtro por Tipo de ATM (DISPENSADOR / MONEDERO / RECICLADOR)
+        if tipo_atm:
+            dff = dff[dff[COL_TIPO].str.contains(tipo_atm, na=False)]
+
+        # 🔵 Filtro por Ubicación ATM (OFICINA / ISLA)
+        if ubic_atm:
+            dff = dff[dff[COL_UBIC].str.contains(ubic_atm, na=False)]
 
         dff_layer = dff
 
@@ -1110,6 +1122,25 @@ input[type="checkbox"]{
       </select>
     </label>
 
+    {% if tipo_mapa == 'islas' %}
+      <label>Tipo ATM:
+        <select id="selTipoATM">
+          <option value="">-- Todos --</option>
+          <option value="DISPENSADOR">Dispensador</option>
+          <option value="MONEDERO">Monedero</option>
+          <option value="RECICLADOR">Reciclador</option>
+        </select>
+      </label>
+
+      <label>Ubicación:
+        <select id="selUbicacionATM">
+          <option value="">-- Todas --</option>
+          <option value="OFICINA">Oficina</option>
+          <option value="ISLA">Isla</option>
+        </select>
+      </label>
+    {% endif %}
+
     <label style="margin-left:16px;">
       <input type="checkbox" id="chkHeat" checked> Heatmap
     </label>
@@ -1269,6 +1300,10 @@ const selDiv  = document.getElementById("selDivision");
 const chkHeat = document.getElementById("chkHeat");
 const infoBox = document.getElementById("infoCount");
 
+// 🔵 NUEVOS SELECTS SOLO EXISTEN EN CAPA ISLAS
+const selTipoATM = document.getElementById("selTipoATM");
+const selUbicATM = document.getElementById("selUbicacionATM");
+
 function updateProvincias(){
   let d = selDep.value;
   selProv.innerHTML = '<option value="">-- Todas --</option>';
@@ -1321,6 +1356,10 @@ selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
+
+// 🔵 Cuando cambian Tipo ATM o Ubicación, se recarga también
+if (selTipoATM)  selTipoATM.onchange  = () => fetchPoints();
+if (selUbicATM)  selUbicATM.onchange  = () => fetchPoints();
 
 
 // ======================================================
@@ -1476,7 +1515,17 @@ async function fetchPoints(){
   const di = selDist.value;
   const dv = selDiv.value;
 
-  const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
+  const t_atm = selTipoATM ? selTipoATM.value : "";
+  const u_atm = selUbicATM ? selUbicATM.value : "";
+
+  const qs =
+    `tipo=${TIPO_MAPA}` +
+    `&departamento=${encodeURIComponent(d)}` +
+    `&provincia=${encodeURIComponent(p)}` +
+    `&distrito=${encodeURIComponent(di)}` +
+    `&division=${encodeURIComponent(dv)}` +
+    `&tipo_atm=${encodeURIComponent(t_atm)}` +
+    `&ubic_atm=${encodeURIComponent(u_atm)}`;
 
   infoBox.textContent = "...";
   panelATM.classList.add("hidden");
