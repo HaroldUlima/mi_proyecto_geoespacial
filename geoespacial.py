@@ -247,15 +247,12 @@ df_oficinas[COLF_TRX] = pd.to_numeric(df_oficinas[COLF_TRX], errors="coerce").fi
 
 # ============================================================
 # 3. LISTAS PARA FILTROS — JERARQUÍA POR CADA CAPA
-#    (SIN MEZCLAR ISLAS / AGENTES / OFICINAS)
 # ============================================================
 
-# --------- DEPARTAMENTOS POR CAPA ----------
 DEPARTAMENTOS_ISLAS = sorted(df[COL_DEPT].dropna().astype(str).unique())
 DEPARTAMENTOS_AGENTES = sorted(df_agentes[COLA_DEPT].dropna().astype(str).unique())
 DEPARTAMENTOS_OFICINAS = sorted(df_oficinas[COLF_DEPT].dropna().astype(str).unique())
 
-# --------- PROVINCIAS POR CAPA ----------
 PROVINCIAS_ISLAS_BY_DEPT = {}
 for d in DEPARTAMENTOS_ISLAS:
     provs = df[df[COL_DEPT] == d][COL_PROV].dropna().astype(str).unique().tolist()
@@ -283,7 +280,6 @@ for d in DEPARTAMENTOS_OFICINAS:
     )
     PROVINCIAS_OFICINAS_BY_DEPT[d] = sorted(set(provs))
 
-# --------- DISTRITOS POR CAPA ----------
 PROVS_ISLAS = sorted(df[COL_PROV].dropna().astype(str).unique())
 DIST_ISLAS_BY_PROV = {}
 for p in PROVS_ISLAS:
@@ -314,7 +310,6 @@ for p in PROVS_OFICINAS:
     )
     DIST_OFICINAS_BY_PROV[p] = sorted(set(dists))
 
-# --------- DIVISIONES POR CAPA ----------
 # ISLAS
 DIV_ISLAS_BY_DEPT = {}
 for d in DEPARTAMENTOS_ISLAS:
@@ -518,7 +513,6 @@ def logout():
 
 # ============================================================
 # 5. SELECTOR DE CAPAS
-#   ✅ FIX: Integral usa banco.png (antes integral.png podía estar vacío)
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -603,7 +597,6 @@ h1{
   </div>
 
   <div class="card" onclick="location.href='/mapa/integral'">
-    <!-- ✅ aquí: banco.png -->
     <img src="{{ url_for('static', filename='banco.png') }}" alt="Mapa Integral BBVA">
     <div class="card-title"><span class="icon">🗺️</span>Integral</div>
   </div>
@@ -655,7 +648,6 @@ def mapa_tipo(tipo):
 
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
 
-    # Elegir listas SEGÚN LA CAPA (sin mezclar)
     if tipo == "islas":
         departamentos = DEPARTAMENTOS_ISLAS
         provincias_by_dept = PROVINCIAS_ISLAS_BY_DEPT
@@ -709,7 +701,6 @@ def api_points():
     dist = request.args.get("distrito", "").upper().strip()
     divi = request.args.get("division", "").upper().strip()
 
-    # 🔵 NUEVOS FILTROS SOLO PARA CAPA ISLAS (ATMs)
     tipo_atm = request.args.get("tipo_atm", "").upper().strip()
     ubic_atm = request.args.get("ubic_atm", "").upper().strip()
 
@@ -733,11 +724,9 @@ def api_points():
         if divi:
             dff = dff[dff[COL_DIV] == divi]
 
-        # 🔵 Filtro por Tipo de ATM (DISPENSADOR / MONEDERO / RECICLADOR)
         if tipo_atm:
             dff = dff[dff[COL_TIPO].str.contains(tipo_atm, na=False)]
 
-        # 🔵 Filtro por Ubicación ATM (OFICINA / ISLA)
         if ubic_atm:
             dff = dff[dff[COL_UBIC].str.contains(ubic_atm, na=False)]
 
@@ -1108,8 +1097,9 @@ def api_points_integral():
 
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
-#   ✅ FIX: INTEGRAL muestra banner banco.png al inicio
-#   ✅ FIX: Leyendas con IMÁGENES reales (atm_oficina/atm_isla/oficina/agente)
+#   ✅ CAMBIO CLAVE:
+#   - OFICINAS y AGENTES (NO integral) usan la MISMA VENTANA
+#     que el integral (mismos IDs y misma lógica).
 # ============================================================
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -1171,7 +1161,6 @@ header h1{
   font-weight:600;
 }
 
-/* CONTROLES SUPERIORES */
 .topbar{
   padding:16px 20px 8px 20px;
 }
@@ -1201,7 +1190,6 @@ input[type="checkbox"]{
   transform:scale(1.05);
 }
 
-/* LAYOUT PRINCIPAL */
 .main{
   display:flex;
   padding:0 20px 20px 20px;
@@ -1215,7 +1203,6 @@ input[type="checkbox"]{
   box-shadow:0 8px 24px rgba(0,0,0,0.18);
 }
 
-/* SIDE PANEL */
 .side{
   width:360px;
   display:flex;
@@ -1241,7 +1228,6 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
-/* Banner integral */
 .brand-card{
   padding:10px;
 }
@@ -1253,7 +1239,6 @@ input[type="checkbox"]{
   display:block;
 }
 
-/* Leyendas con imágenes */
 .legend{
   margin-top:10px;
 }
@@ -1278,7 +1263,6 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
-/* Panel detalle (clic) */
 .side-card-atm{
   font-family:"Consolas","Fira Code",monospace;
   white-space:pre-line;
@@ -1301,8 +1285,6 @@ input[type="checkbox"]{
   font-size:12px;
   cursor:pointer;
 }
-
-/* Glow suave */
 @keyframes panelGlow{
   0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
   50%{box-shadow:0 0 18px rgba(20,100,165,0.55);}
@@ -1311,11 +1293,8 @@ input[type="checkbox"]{
 .side-card-atm.glow{
   animation:panelGlow 2.2s ease-in-out infinite;
 }
-
-/* Ocultar */
 .hidden{ display:none; }
 
-/* Popup Leaflet */
 .leaflet-popup-content-wrapper{
   border-radius:12px;
   box-shadow:0 6px 20px rgba(0,0,0,0.25);
@@ -1420,166 +1399,108 @@ input[type="checkbox"]{
   <div class="side">
 
     {% if tipo_mapa == 'integral' %}
-      <!-- ✅ Banner (banco.png) al inicio (para que no salga vacío) -->
       <div class="side-card brand-card">
         <img src="{{ url_for('static', filename='banco.png') }}" alt="BBVA">
       </div>
-
-      <!-- =========================
-           3 VENTANAS SEPARADAS — INTEGRAL
-           ========================= -->
-
-      <div id="panelATMResumen" class="side-card">
-        <div class="side-title">🌐 Panel ATMs</div>
-        <div class="muted">Se actualiza con filtros y solo cuenta si ATMs está activado.</div>
-
-        <div style="margin-top:8px;">
-          <b>Total ATMs:</b> <span id="resAtmTotal">0</span>
-        </div>
-        <div class="muted" style="margin-top:4px;">
-          <b>Suma TRX:</b> <span id="resAtmSuma">0</span>
-        </div>
-
-        <div style="margin-top:10px; font-weight:700;">Distribución</div>
-        <div class="muted">ATMs en oficina: <span id="resAtmEnOfi">0</span></div>
-        <div class="muted">ATMs en isla: <span id="resAtmEnIsla">0</span></div>
-
-        <div style="margin-top:10px; font-weight:700;">Tipos</div>
-        <div class="muted">Dispensador: <span id="resAtmDisp">0</span></div>
-        <div class="muted">Monedero: <span id="resAtmMon">0</span></div>
-        <div class="muted">Reciclador: <span id="resAtmRec">0</span></div>
-
-        <!-- ✅ Leyenda con imágenes reales -->
-        <div class="legend">
-          <div style="font-weight:700;">Leyenda</div>
-          <div class="legend-item">
-            <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
-            <div class="lbl">ATM en Oficina</div>
-          </div>
-          <div class="legend-item">
-            <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
-            <div class="lbl">ATM en Isla</div>
-          </div>
-        </div>
-      </div>
-
-      <div id="panelOfiResumen" class="side-card">
-        <div class="side-title">🏦 Panel Oficinas</div>
-        <div class="muted">Se actualiza con filtros y solo cuenta si Oficinas está activado.</div>
-
-        <div style="margin-top:8px;">
-          <b>Total Oficinas:</b> <span id="resOfiTotal">0</span>
-        </div>
-        <div class="muted" style="margin-top:4px;">
-          <b>Suma TRX:</b> <span id="resOfiSuma">0</span>
-        </div>
-
-        <!-- ✅ Leyenda con imagen real -->
-        <div class="legend">
-          <div style="font-weight:700;">Leyenda</div>
-          <div class="legend-item">
-            <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
-            <div class="lbl">Oficina</div>
-          </div>
-        </div>
-      </div>
-
-      <div id="panelAgResumen" class="side-card">
-        <div class="side-title">🧍 Panel Agentes</div>
-        <div class="muted">Se actualiza con filtros y solo cuenta si Agentes está activado.</div>
-
-        <div style="margin-top:8px;">
-          <b>Total Agentes:</b> <span id="resAgTotal">0</span>
-        </div>
-        <div class="muted" style="margin-top:4px;">
-          <b>Suma TRX:</b> <span id="resAgSuma">0</span>
-        </div>
-
-        <div style="margin-top:10px; font-weight:700;">Capas</div>
-        <div class="muted">A1: <span id="resAgA1">0</span></div>
-        <div class="muted">A2: <span id="resAgA2">0</span></div>
-        <div class="muted">A3: <span id="resAgA3">0</span></div>
-        <div class="muted">B : <span id="resAgB">0</span></div>
-        <div class="muted">C : <span id="resAgC">0</span></div>
-
-        <!-- ✅ Leyenda con imagen real -->
-        <div class="legend">
-          <div style="font-weight:700;">Leyenda</div>
-          <div class="legend-item">
-            <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
-            <div class="lbl">Agente</div>
-          </div>
-        </div>
-      </div>
-
-    {% else %}
-      <!-- =========================
-           PANEL ÚNICO — CAPAS NORMALES
-           ========================= -->
-      <div id="panelResumen" class="side-card">
-        <div class="side-title" id="panelResumenTitulo">Resumen</div>
-        <div class="muted" id="panelResumenSub">Suma total de transacciones:</div>
-
-        <div style="margin-top:4px;">
-          <b>Suma total de transacciones:</b> <span id="resSuma">0</span>
-        </div>
-
-        <div id="bloqueIslasOfi">
-          <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
-          <div class="muted">Total: <span id="resTotal">0</span></div>
-          <div class="muted">ATMs en oficinas: <span id="resOfi">0</span></div>
-          <div class="muted">ATMs en islas: <span id="resIsla">0</span></div>
-          <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
-          <div class="muted">Monedero: <span id="resMon">0</span></div>
-          <div class="muted">Reciclador: <span id="resRec">0</span></div>
-
-          <!-- ✅ Leyenda ISLAS (2 íconos) -->
-          <div class="legend">
-            <div style="font-weight:700;">Leyenda</div>
-            <div class="legend-item">
-              <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
-              <div class="lbl">ATM en Oficina</div>
-            </div>
-            <div class="legend-item">
-              <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
-              <div class="lbl">ATM en Isla</div>
-            </div>
-          </div>
-        </div>
-
-        <div id="bloqueOficinas" class="hidden">
-          <div class="muted">Cantidad total de oficinas: <span id="resOficinasCount">0</span></div>
-          <div class="muted" style="margin-top:4px;">Suma total de TRX: <span id="resOficinasSuma">0</span></div>
-
-          <!-- ✅ Leyenda OFICINAS (icono real) -->
-          <div class="legend">
-            <div style="font-weight:700;">Leyenda</div>
-            <div class="legend-item">
-              <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
-              <div class="lbl">Oficina</div>
-            </div>
-          </div>
-        </div>
-
-        <div id="bloqueAgentes" class="hidden">
-          <div style="font-weight:600;">Agentes totales: <span id="resAgentesTotal">0</span></div>
-          <div class="muted">A1: <span id="resCapaA1">0</span></div>
-          <div class="muted">A2: <span id="resCapaA2">0</span></div>
-          <div class="muted">A3: <span id="resCapaA3">0</span></div>
-          <div class="muted">B : <span id="resCapaB">0</span></div>
-          <div class="muted">C : <span id="resCapaC">0</span></div>
-
-          <!-- ✅ Leyenda AGENTES (icono real) -->
-          <div class="legend">
-            <div style="font-weight:700;">Leyenda</div>
-            <div class="legend-item">
-              <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
-              <div class="lbl">Agente</div>
-            </div>
-          </div>
-        </div>
-      </div>
     {% endif %}
+
+    <!-- ============================================================
+         ✅ SIEMPRE EXISTEN LOS 3 PANELES (MISMOS IDs)
+         - Integral: se controlan por checkbox
+         - No integral: se muestra SOLO el panel de su capa
+       ============================================================ -->
+
+    <div id="panelATMResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'islas' %}hidden{% endif %}">
+      <div class="side-title">🌐 Panel ATMs</div>
+      {% if tipo_mapa == 'integral' %}
+        <div class="muted">Se actualiza con filtros y solo cuenta si ATMs está activado.</div>
+      {% else %}
+        <div class="muted">Se actualiza con filtros (solo ATMs).</div>
+      {% endif %}
+
+      <div style="margin-top:8px;">
+        <b>Total ATMs:</b> <span id="resAtmTotal">0</span>
+      </div>
+      <div class="muted" style="margin-top:4px;">
+        <b>Suma TRX:</b> <span id="resAtmSuma">0</span>
+      </div>
+
+      <div style="margin-top:10px; font-weight:700;">Distribución</div>
+      <div class="muted">ATMs en oficina: <span id="resAtmEnOfi">0</span></div>
+      <div class="muted">ATMs en isla: <span id="resAtmEnIsla">0</span></div>
+
+      <div style="margin-top:10px; font-weight:700;">Tipos</div>
+      <div class="muted">Dispensador: <span id="resAtmDisp">0</span></div>
+      <div class="muted">Monedero: <span id="resAtmMon">0</span></div>
+      <div class="muted">Reciclador: <span id="resAtmRec">0</span></div>
+
+      <div class="legend">
+        <div style="font-weight:700;">Leyenda</div>
+        <div class="legend-item">
+          <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
+          <div class="lbl">ATM en Oficina</div>
+        </div>
+        <div class="legend-item">
+          <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
+          <div class="lbl">ATM en Isla</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelOfiResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'oficinas' %}hidden{% endif %}">
+      <div class="side-title">🏦 Panel Oficinas</div>
+      {% if tipo_mapa == 'integral' %}
+        <div class="muted">Se actualiza con filtros y solo cuenta si Oficinas está activado.</div>
+      {% else %}
+        <div class="muted">Se actualiza con filtros (solo Oficinas).</div>
+      {% endif %}
+
+      <div style="margin-top:8px;">
+        <b>Total Oficinas:</b> <span id="resOfiTotal">0</span>
+      </div>
+      <div class="muted" style="margin-top:4px;">
+        <b>Suma TRX:</b> <span id="resOfiSuma">0</span>
+      </div>
+
+      <div class="legend">
+        <div style="font-weight:700;">Leyenda</div>
+        <div class="legend-item">
+          <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
+          <div class="lbl">Oficina</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelAgResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'agentes' %}hidden{% endif %}">
+      <div class="side-title">🧍 Panel Agentes</div>
+      {% if tipo_mapa == 'integral' %}
+        <div class="muted">Se actualiza con filtros y solo cuenta si Agentes está activado.</div>
+      {% else %}
+        <div class="muted">Se actualiza con filtros (solo Agentes).</div>
+      {% endif %}
+
+      <div style="margin-top:8px;">
+        <b>Total Agentes:</b> <span id="resAgTotal">0</span>
+      </div>
+      <div class="muted" style="margin-top:4px;">
+        <b>Suma TRX:</b> <span id="resAgSuma">0</span>
+      </div>
+
+      <div style="margin-top:10px; font-weight:700;">Capas</div>
+      <div class="muted">A1: <span id="resAgA1">0</span></div>
+      <div class="muted">A2: <span id="resAgA2">0</span></div>
+      <div class="muted">A3: <span id="resAgA3">0</span></div>
+      <div class="muted">B : <span id="resAgB">0</span></div>
+      <div class="muted">C : <span id="resAgC">0</span></div>
+
+      <div class="legend">
+        <div style="font-weight:700;">Leyenda</div>
+        <div class="legend-item">
+          <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
+          <div class="lbl">Agente</div>
+        </div>
+      </div>
+    </div>
 
     <!-- PANEL DETALLE (clic en un punto) -->
     <div id="panelATM" class="side-card side-card-atm hidden">
@@ -1629,7 +1550,7 @@ function getIcon(pt){
     if (ubic.includes("ISLA")) return ICON_ATM_ISLA;
     return ICON_ATM_ISLA;
   }
-  return ICON_ATM_ISLA; // fallback
+  return ICON_ATM_ISLA;
 }
 
 // ======================================================
@@ -1654,7 +1575,6 @@ const selDiv  = document.getElementById("selDivision");
 const chkHeat = document.getElementById("chkHeat");
 const infoBox = document.getElementById("infoCount");
 
-// Solo ISLAS
 const selTipoATM = document.getElementById("selTipoATM");
 const selUbicATM = document.getElementById("selUbicacionATM");
 
@@ -1706,27 +1626,31 @@ const panelATMTitle = document.getElementById("panelATMTitle");
 const atmDetalle    = document.getElementById("atmDetalle");
 const btnVolver     = document.getElementById("btnVolver");
 
-function hideResumenPanels(){
-  // Integral: 3 paneles
-  const pA = document.getElementById("panelATMResumen");
-  const pO = document.getElementById("panelOfiResumen");
-  const pG = document.getElementById("panelAgResumen");
-  if(pA) pA.classList.add("hidden");
-  if(pO) pO.classList.add("hidden");
-  if(pG) pG.classList.add("hidden");
+const panelATMResumen = document.getElementById("panelATMResumen");
+const panelOfiResumen = document.getElementById("panelOfiResumen");
+const panelAgResumen  = document.getElementById("panelAgResumen");
 
-  // Normal: panelResumen
-  const pR = document.getElementById("panelResumen");
-  if(pR) pR.classList.add("hidden");
+function hideResumenPanels(){
+  if(panelATMResumen) panelATMResumen.classList.add("hidden");
+  if(panelOfiResumen) panelOfiResumen.classList.add("hidden");
+  if(panelAgResumen)  panelAgResumen.classList.add("hidden");
+}
+
+function syncSinglePanelsVisibility(){
+  if(TIPO_MAPA === "integral"){
+    syncIntegralPanelsVisibility();
+    return;
+  }
+  if(panelATMResumen) panelATMResumen.classList.toggle("hidden", TIPO_MAPA !== "islas");
+  if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", TIPO_MAPA !== "oficinas");
+  if(panelAgResumen)  panelAgResumen.classList.toggle("hidden", TIPO_MAPA !== "agentes");
 }
 
 function showResumenPanels(){
-  // Integral: se muestra según checks
   if(TIPO_MAPA === "integral"){
     syncIntegralPanelsVisibility();
   } else {
-    const pR = document.getElementById("panelResumen");
-    if(pR) pR.classList.remove("hidden");
+    syncSinglePanelsVisibility();
   }
 }
 
@@ -1796,7 +1720,6 @@ Promedio: ${pt.promedio}
 _____________________
 `;
     }
-    panelATMTitle.textContent = "Panel del punto seleccionado";
 
   } else if(TIPO_MAPA === "agentes"){
     texto = `
@@ -1821,7 +1744,6 @@ _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
-    panelATMTitle.textContent = "Panel del agente seleccionado";
 
   } else if(TIPO_MAPA === "oficinas"){
     texto = `
@@ -1840,9 +1762,8 @@ _____________________
 Promedio TRX: ${pt.promedio}
 _____________________
 `;
-    panelATMTitle.textContent = "Panel de la oficina seleccionada";
 
-  } else {
+  } else { // islas
     texto = `
 _____________________
  ATM ${pt.atm}
@@ -1861,7 +1782,6 @@ _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
-    panelATMTitle.textContent = "Panel del ATM seleccionado";
   }
 
   atmDetalle.textContent = texto;
@@ -1878,7 +1798,7 @@ btnVolver.addEventListener("click", () => {
 });
 
 // ======================================================
-// CAPAS NORMALES
+// CAPAS NORMALES (NO integral) — AHORA ACTUALIZA LOS MISMOS IDs
 // ======================================================
 async function fetchPoints(){
   if(TIPO_MAPA === "integral") return;
@@ -1907,6 +1827,7 @@ async function fetchPoints(){
   const data = await res.json();
   const pts = data.puntos || [];
 
+  // contador superior
   infoBox.textContent = data.total_atms ?? pts.length;
 
   markers.clearLayers();
@@ -1921,6 +1842,7 @@ async function fetchPoints(){
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
 
+    // solo tiene sentido heat con "promedio" (igual sirve para todas)
     heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
   });
@@ -1941,59 +1863,61 @@ async function fetchPoints(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // ===== resumen normal (si existe) =====
-  const resSuma = document.getElementById("resSuma");
-  const resTotal = document.getElementById("resTotal");
-  const resOfi = document.getElementById("resOfi");
-  const resIsla = document.getElementById("resIsla");
-  const resDisp = document.getElementById("resDisp");
-  const resMon = document.getElementById("resMon");
-  const resRec = document.getElementById("resRec");
+  // ✅ Actualizar panel correcto (mismos IDs que integral)
+  if(TIPO_MAPA === "islas"){
+    const elAtmTotal = document.getElementById("resAtmTotal");
+    const elAtmSuma  = document.getElementById("resAtmSuma");
+    const elAtmOfi   = document.getElementById("resAtmEnOfi");
+    const elAtmIsla  = document.getElementById("resAtmEnIsla");
+    const elAtmDisp  = document.getElementById("resAtmDisp");
+    const elAtmMon   = document.getElementById("resAtmMon");
+    const elAtmRec   = document.getElementById("resAtmRec");
 
-  const resOficinasCount = document.getElementById("resOficinasCount");
-  const resOficinasSuma  = document.getElementById("resOficinasSuma");
-
-  const resAgentesTotal = document.getElementById("resAgentesTotal");
-  const resCapaA1 = document.getElementById("resCapaA1");
-  const resCapaA2 = document.getElementById("resCapaA2");
-  const resCapaA3 = document.getElementById("resCapaA3");
-  const resCapaB  = document.getElementById("resCapaB");
-  const resCapaC  = document.getElementById("resCapaC");
-
-  if(resSuma) resSuma.textContent = Math.round(data.suma_total || 0);
-
-  if(TIPO_MAPA === "agentes" && resAgentesTotal){
-    resAgentesTotal.textContent = data.total_agentes || 0;
-    resCapaA1.textContent = data.total_capa_A1 || 0;
-    resCapaA2.textContent = data.total_capa_A2 || 0;
-    resCapaA3.textContent = data.total_capa_A3 || 0;
-    resCapaB.textContent  = data.total_capa_B  || 0;
-    resCapaC.textContent  = data.total_capa_C  || 0;
-
-  } else if(TIPO_MAPA === "oficinas" && resOficinasCount){
-    resOficinasCount.textContent = data.total_oficinas || 0;
-    resOficinasSuma.textContent  = Math.round(data.suma_total || 0);
-
-  } else if(TIPO_MAPA === "islas" && resTotal){
-    resTotal.textContent = data.total_atms || 0;
-    resOfi.textContent   = data.total_oficinas || 0;
-    resIsla.textContent  = data.total_islas || 0;
-    resDisp.textContent  = data.total_disp || 0;
-    resMon.textContent   = data.total_mon  || 0;
-    resRec.textContent   = data.total_rec  || 0;
+    if(elAtmTotal) elAtmTotal.textContent = data.total_atms || 0;
+    if(elAtmSuma)  elAtmSuma.textContent  = Math.round(data.suma_total || 0);
+    if(elAtmOfi)   elAtmOfi.textContent   = data.total_oficinas || 0;
+    if(elAtmIsla)  elAtmIsla.textContent  = data.total_islas || 0;
+    if(elAtmDisp)  elAtmDisp.textContent  = data.total_disp || 0;
+    if(elAtmMon)   elAtmMon.textContent   = data.total_mon  || 0;
+    if(elAtmRec)   elAtmRec.textContent   = data.total_rec  || 0;
   }
+
+  if(TIPO_MAPA === "oficinas"){
+    const elOfiTotal = document.getElementById("resOfiTotal");
+    const elOfiSuma  = document.getElementById("resOfiSuma");
+    if(elOfiTotal) elOfiTotal.textContent = data.total_oficinas || 0;
+    if(elOfiSuma)  elOfiSuma.textContent  = Math.round(data.suma_total || 0);
+  }
+
+  if(TIPO_MAPA === "agentes"){
+    const elAgTotal = document.getElementById("resAgTotal");
+    const elAgSuma  = document.getElementById("resAgSuma");
+    const elA1 = document.getElementById("resAgA1");
+    const elA2 = document.getElementById("resAgA2");
+    const elA3 = document.getElementById("resAgA3");
+    const elB  = document.getElementById("resAgB");
+    const elC  = document.getElementById("resAgC");
+
+    if(elAgTotal) elAgTotal.textContent = data.total_agentes || 0;
+    if(elAgSuma)  elAgSuma.textContent  = Math.round(data.suma_total || 0);
+
+    if(elA1) elA1.textContent = data.total_capa_A1 || 0;
+    if(elA2) elA2.textContent = data.total_capa_A2 || 0;
+    if(elA3) elA3.textContent = data.total_capa_A3 || 0;
+    if(elB)  elB.textContent  = data.total_capa_B  || 0;
+    if(elC)  elC.textContent  = data.total_capa_C  || 0;
+  }
+
+  // asegurar visibilidad correcta al volver
+  syncSinglePanelsVisibility();
 }
 
 // ======================================================
-// INTEGRAL: 3 VENTANAS + SUMAS SOLO DE CHECKS ACTIVOS
+// INTEGRAL
 // ======================================================
 const chkATMs     = document.getElementById("chkShowATMs");
 const chkOficinas = document.getElementById("chkShowOficinas");
 const chkAgentes  = document.getElementById("chkShowAgentes");
-
-const panelATMResumen = document.getElementById("panelATMResumen");
-const panelOfiResumen = document.getElementById("panelOfiResumen");
-const panelAgResumen  = document.getElementById("panelAgResumen");
 
 function syncIntegralPanelsVisibility(){
   if(TIPO_MAPA !== "integral") return;
@@ -2033,7 +1957,6 @@ async function fetchIntegral(){
   const showOfi  = !chkOficinas || chkOficinas.checked;
   const showAg   = !chkAgentes || chkAgentes.checked;
 
-  // ATMs
   if(showATMs){
     (data.atms || []).forEach(pt=>{
       const ubic = (pt.ubicacion || "").toUpperCase();
@@ -2047,7 +1970,6 @@ async function fetchIntegral(){
     });
   }
 
-  // Oficinas
   if(showOfi){
     (data.oficinas || []).forEach(pt=>{
       const m = L.marker([pt.lat, pt.lon], {icon:ICON_OFICINA});
@@ -2057,7 +1979,6 @@ async function fetchIntegral(){
     });
   }
 
-  // Agentes
   if(showAg){
     (data.agentes || []).forEach(pt=>{
       const m = L.marker([pt.lat, pt.lon], {icon:ICON_AGENTE});
@@ -2083,7 +2004,7 @@ async function fetchIntegral(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // ====== Actualizar 3 ventanas (valores filtrados) ======
+  // ====== actualizar 3 paneles ======
   const elAtmTotal = document.getElementById("resAtmTotal");
   const elAtmSuma  = document.getElementById("resAtmSuma");
   const elAtmOfi   = document.getElementById("resAtmEnOfi");
@@ -2116,7 +2037,6 @@ async function fetchIntegral(){
   if(elAtmMon)   elAtmMon.textContent   = showATMs ? atm_mon : 0;
   if(elAtmRec)   elAtmRec.textContent   = showATMs ? atm_rec : 0;
 
-  // Oficinas panel
   const elOfiTotal = document.getElementById("resOfiTotal");
   const elOfiSuma  = document.getElementById("resOfiSuma");
   const ofi_total  = (data.total_oficinas || 0);
@@ -2125,7 +2045,6 @@ async function fetchIntegral(){
   if(elOfiTotal) elOfiTotal.textContent = showOfi ? ofi_total : 0;
   if(elOfiSuma)  elOfiSuma.textContent  = showOfi ? Math.round(ofi_suma) : 0;
 
-  // Agentes panel
   const elAgTotal = document.getElementById("resAgTotal");
   const elAgSuma  = document.getElementById("resAgSuma");
   const elA1 = document.getElementById("resAgA1");
@@ -2156,7 +2075,6 @@ async function fetchIntegral(){
   if(elB)  elB.textContent  = showAg ? b  : 0;
   if(elC)  elC.textContent  = showAg ? c  : 0;
 
-  // Contador superior: SOLO visible
   const visibleCount =
     (showATMs ? atm_total : 0) +
     (showOfi  ? ofi_total : 0) +
@@ -2212,6 +2130,7 @@ if(TIPO_MAPA === "integral"){
   syncIntegralPanelsVisibility();
   fetchIntegral();
 } else {
+  syncSinglePanelsVisibility();
   fetchPoints();
 }
 
