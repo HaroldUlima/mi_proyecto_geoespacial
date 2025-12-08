@@ -1171,8 +1171,8 @@ const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
 // URLs de iconos (mismas imágenes del selector de capas)
-const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
-const ICON_ISLA_URL    = "{{ url_for('static', filename='isla.png') }}";
+const ICON_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
+const ICON_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
 // Iconos Leaflet reutilizables
