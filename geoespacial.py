@@ -862,8 +862,9 @@ def api_points():
         }
     )
 
+
 # ============================================================
-# 8. TEMPLATE MAPA — FRONTEND COMPLETO
+# 8. TEMPLATE MAPA — FRONTEND SIN HEATMAP
 # ============================================================
 
 TEMPLATE_MAPA = """
@@ -943,9 +944,6 @@ select{
   border-radius:8px;
   border:1px solid #d0d7e3;
 }
-input[type="checkbox"]{
-  transform:scale(1.05);
-}
 
 /* LAYOUT PRINCIPAL */
 .main{
@@ -1006,58 +1004,17 @@ input[type="checkbox"]{
   cursor:pointer;
 }
 
-/* Glow suave cuando hay selección */
+/* Glow suave */
 @keyframes panelGlow{
-  0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
+  0%{box-shadow:0 0 0 rgba(20,100,165,0);}
   50%{box-shadow:0 0 18px rgba(20,100,165,0.55);}
-  100%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
+  100%{box-shadow:0 0 0 rgba(20,100,165,0);}
 }
 .side-card-atm.glow{
   animation:panelGlow 2.2s ease-in-out infinite;
 }
 
-/* Ocultar */
 .hidden{ display:none; }
-
-/* Popup Leaflet */
-.leaflet-popup-content-wrapper{
-  border-radius:12px;
-  box-shadow:0 6px 20px rgba(0,0,0,0.25);
-}
-.popup-title{
-  font-size:14px;
-  font-weight:bold;
-  color:var(--bbva-blue);
-  margin-bottom:4px;
-}
-.popup-row{
-  margin:2px 0;
-  font-size:12px;
-}
-
-/* Iconos personalizados para heatmap por iconos */
-.heat-icon{
-  width:28px;
-  height:28px;
-  border-radius:50%;
-  border:2px solid #ffffff;
-  box-shadow:0 0 6px rgba(0,0,0,0.4);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:11px;
-  font-weight:700;
-  color:#ffffff;
-}
-.heat-low{
-  background:#2ecc71; /* verde */
-}
-.heat-med{
-  background:#f1c40f; /* amarillo */
-}
-.heat-high{
-  background:#e74c3c; /* rojo */
-}
 </style>
 </head>
 
@@ -1100,9 +1057,7 @@ input[type="checkbox"]{
       </select>
     </label>
 
-    <label style="margin-left:16px;">
-      <input type="checkbox" id="chkHeat" checked> Heatmap
-    </label>
+    <!-- 🔵 HEATMAP ELIMINADO -->
 
     <div style="flex:1"></div>
 
@@ -1125,54 +1080,45 @@ input[type="checkbox"]{
         <b>Suma total de transacciones:</b> <span id="resSuma">0</span>
       </div>
 
-      <!-- Bloque ISLAS -->
       <div id="bloqueIslasOfi">
-        <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
-        <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
+        <div style="margin-top:6px;font-weight:600;">ATMs totales</div>
+        <div class="muted">Total: <span id="resTotal">0</span></div>
         <div class="muted">ATMs en oficinas: <span id="resOfi">0</span></div>
         <div class="muted">ATMs en islas: <span id="resIsla">0</span></div>
-
         <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
         <div class="muted">Monedero: <span id="resMon">0</span></div>
         <div class="muted">Reciclador: <span id="resRec">0</span></div>
       </div>
 
-      <!-- Bloque OFICINAS -->
       <div id="bloqueOficinas" class="hidden" style="margin-top:8px;">
-        <div class="muted" style="margin-top:2px;">
-          Cantidad total de oficinas: <span id="resOficinasCount">0</span>
-        </div>
-        <div class="muted" style="margin-top:4px;">
-          Suma total de TRX: <span id="resOficinasSuma">0</span>
-        </div>
+        <div class="muted">Cantidad total de oficinas: <span id="resOficinasCount">0</span></div>
+        <div class="muted">Suma total de TRX: <span id="resOficinasSuma">0</span></div>
       </div>
 
-      <!-- Bloque AGENTES -->
       <div id="bloqueAgentes" class="hidden" style="margin-top:8px;">
         <div style="font-weight:600;">Agentes totales: <span id="resAgentesTotal">0</span></div>
-        <div class="muted" style="margin-top:4px;">Capa A1: <span id="resCapaA1">0</span></div>
-        <div class="muted">Capa A2: <span id="resCapaA2">0</span></div>
-        <div class="muted">Capa A3: <span id="resCapaA3">0</span></div>
-        <div class="muted">Capa B : <span id="resCapaB">0</span></div>
-        <div class="muted">Capa C : <span id="resCapaC">0</span></div>
+        <div class="muted">A1: <span id="resCapaA1">0</span></div>
+        <div class="muted">A2: <span id="resCapaA2">0</span></div>
+        <div class="muted">A3: <span id="resCapaA3">0</span></div>
+        <div class="muted">B: <span id="resCapaB">0</span></div>
+        <div class="muted">C: <span id="resCapaC">0</span></div>
       </div>
 
-      <div style="margin-top:10px; font-weight:600;">Leyenda</div>
-      <div class="muted" id="legendBox">
-      </div>
+      <div style="margin-top:10px;font-weight:600;">Leyenda</div>
+      <div class="muted" id="legendBox"></div>
     </div>
 
     <!-- PANEL DETALLE -->
     <div id="panelATM" class="side-card side-card-atm hidden">
       <h3 id="panelATMTitle">Panel del ATM seleccionado</h3>
-      <div id="atmDetalle" style="font-size:12px; margin-top:4px;"></div>
+      <div id="atmDetalle" style="font-size:12px;margin-top:4px;"></div>
       <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/markercluster.js"></script>
 
 <script>
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
@@ -1181,39 +1127,20 @@ const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
 const DIV_BY_PROV  = {{ div_by_prov|tojson }};
 const DIV_BY_DIST  = {{ div_by_dist|tojson }};
 const TIPO_MAPA    = "{{ tipo_mapa }}";
-const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-const INITIAL_ZOOM   = {{ initial_zoom }}];
 
-// URLs de iconos originales (vista normal)
+const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
+const INITIAL_ZOOM   = {{ initial_zoom }};
+
 const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
 const ICON_ISLA_URL    = "{{ url_for('static', filename='isla.png') }}";
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
-// Iconos Leaflet originales (cuando Heatmap está APAGADO)
-const ICON_OFICINA = L.icon({
-  iconUrl: ICON_OFICINA_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
+const ICON_OFICINA = L.icon({iconUrl:ICON_OFICINA_URL,iconSize:[40,40],iconAnchor:[20,20]});
+const ICON_ISLA    = L.icon({iconUrl:ICON_ISLA_URL,iconSize:[40,40],iconAnchor:[20,20]});
+const ICON_AGENTE  = L.icon({iconUrl:ICON_AGENTE_URL,iconSize:[40,40],iconAnchor:[20,20]});
 
-const ICON_ISLA = L.icon({
-  iconUrl: ICON_ISLA_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
-
-const ICON_AGENTE = L.icon({
-  iconUrl: ICON_AGENTE_URL,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20]
-});
-
-// Mapa base
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 const markers = L.markerClusterGroup({chunkedLoading:true});
 markers.addTo(map);
@@ -1223,124 +1150,74 @@ const selDep  = document.getElementById("selDepartamento");
 const selProv = document.getElementById("selProvincia");
 const selDist = document.getElementById("selDistrito");
 const selDiv  = document.getElementById("selDivision");
-const chkHeat = document.getElementById("chkHeat");
+
 const infoBox = document.getElementById("infoCount");
 
-// Panel resumen
-const panelResumen       = document.getElementById("panelResumen");
+// Paneles
+const panelResumen   = document.getElementById("panelResumen");
+const panelATM       = document.getElementById("panelATM");
+const atmDetalle     = document.getElementById("atmDetalle");
+const btnVolver      = document.getElementById("btnVolver");
+
 const panelResumenTitulo = document.getElementById("panelResumenTitulo");
-const resSuma            = document.getElementById("resSuma");
-const resTituloBloque    = document.getElementById("resTituloBloque");
-const resTotal           = document.getElementById("resTotal");
-const resOfi             = document.getElementById("resOfi");
-const resIsla            = document.getElementById("resIsla");
-const resDisp            = document.getElementById("resDisp");
-const resMon             = document.getElementById("resMon");
-const resRec             = document.getElementById("resRec");
 
-const bloqueIslasOfi     = document.getElementById("bloqueIslasOfi");
-const bloqueOficinas     = document.getElementById("bloqueOficinas");
-const bloqueAgentes      = document.getElementById("bloqueAgentes");
+const resSuma          = document.getElementById("resSuma");
+const resTotal         = document.getElementById("resTotal");
+const resOfi           = document.getElementById("resOfi");
+const resIsla          = document.getElementById("resIsla");
+const resDisp          = document.getElementById("resDisp");
+const resMon           = document.getElementById("resMon");
+const resRec           = document.getElementById("resRec");
 
-const resOficinasCount   = document.getElementById("resOficinasCount");
-const resOficinasSuma    = document.getElementById("resOficinasSuma");
+const bloqueIslasOfi   = document.getElementById("bloqueIslasOfi");
+const bloqueOficinas   = document.getElementById("bloqueOficinas");
+const bloqueAgentes    = document.getElementById("bloqueAgentes");
 
-const resAgentesTotal    = document.getElementById("resAgentesTotal");
-const resCapaA1          = document.getElementById("resCapaA1");
-const resCapaA2          = document.getElementById("resCapaA2");
-const resCapaA3          = document.getElementById("resCapaA3");
-const resCapaB           = document.getElementById("resCapaB");
-const resCapaC           = document.getElementById("resCapaC");
-const legendBox          = document.getElementById("legendBox");
+const resOficinasCount = document.getElementById("resOficinasCount");
+const resOficinasSuma  = document.getElementById("resOficinasSuma");
 
-// Panel detalle
-const panelATM      = document.getElementById("panelATM");
-const panelATMTitle = document.getElementById("panelATMTitle");
-const atmDetalle    = document.getElementById("atmDetalle");
-const btnVolver     = document.getElementById("btnVolver");
+const resAgentesTotal  = document.getElementById("resAgentesTotal");
+const resCapaA1        = document.getElementById("resCapaA1");
+const resCapaA2        = document.getElementById("resCapaA2");
+const resCapaA3        = document.getElementById("resCapaA3");
+const resCapaB         = document.getElementById("resCapaB");
+const resCapaC         = document.getElementById("resCapaC");
 
-// -------- LEYENDAS (normal vs heatmap por iconos) -------------
-function setLegendNormal(){
-  if(TIPO_MAPA === "oficinas"){
-    legendBox.innerHTML = `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <img src="${ICON_OFICINA_URL}" width="22" height="22"> Oficina
-      </div>
-    `;
-  } else if(TIPO_MAPA === "islas"){
-    legendBox.innerHTML = `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <img src="${ICON_OFICINA_URL}" width="22" height="22"> ATM en Oficina
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <img src="${ICON_ISLA_URL}" width="22" height="22"> ATM en Isla
-      </div>
-    `;
-  } else if(TIPO_MAPA === "agentes"){
-    legendBox.innerHTML = `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <img src="${ICON_AGENTE_URL}" width="22" height="22"> Agente
-      </div>
-    `;
-  }
-}
+const legendBox        = document.getElementById("legendBox");
 
-function setLegendHeat(){
-  legendBox.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#2ecc71;border:1px solid #ccc;"></span>
-      Baja densidad
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#f1c40f;border:1px solid #ccc;"></span>
-      Densidad media
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e74c3c;border:1px solid #ccc;"></span>
-      Alta densidad
-    </div>
-  `;
-}
-
-function updateLegend(){
-  if(chkHeat.checked){
-    setLegendHeat();
-  } else {
-    setLegendNormal();
-  }
-}
-
-// Config inicial según capa
+// Config leyendas por capa
 if(TIPO_MAPA === "oficinas"){
   panelResumenTitulo.textContent = "Resumen — Oficinas";
   bloqueIslasOfi.classList.add("hidden");
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.remove("hidden");
-  panelATMTitle.textContent = "Panel de la oficina seleccionada";
+  legendBox.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <img src="${ICON_OFICINA_URL}" width="22"> Oficina
+    </div>
+  `;
 } else if(TIPO_MAPA === "islas"){
   panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
-  resTituloBloque.textContent    = "ATMs totales (unificado)";
-  bloqueIslasOfi.classList.remove("hidden");
-  bloqueAgentes.classList.add("hidden");
-  bloqueOficinas.classList.add("hidden");
-  panelATMTitle.textContent = "Panel del ATM seleccionado";
+  legendBox.innerHTML = `
+    <div style="display:flex;gap:6px;"><img src="${ICON_OFICINA_URL}" width="22"> ATM Oficina</div>
+    <div style="display:flex;gap:6px;"><img src="${ICON_ISLA_URL}" width="22"> ATM Isla</div>
+  `;
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
   bloqueIslasOfi.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
-  panelATMTitle.textContent = "Panel del agente seleccionado";
+  legendBox.innerHTML = `
+    <div style="display:flex;gap:6px;"><img src="${ICON_AGENTE_URL}" width="22"> Agente</div>
+  `;
 }
-updateLegend();
 
-// ------------------- combos dependientes --------------------
+// ---------------- combos dependientes --------------------
 function updateProvincias(){
   let d = selDep.value;
   selProv.innerHTML = '<option value="">-- Todas --</option>';
   if(d && PROV_BY_DEPT[d]){
-    PROV_BY_DEPT[d].forEach(p => {
-      selProv.innerHTML += `<option value="${p}">${p}</option>`;
-    });
+    PROV_BY_DEPT[d].forEach(p => selProv.innerHTML += `<option value="${p}">${p}</option>`);
   }
   updateDistritos();
   updateDivisiones();
@@ -1350,9 +1227,7 @@ function updateDistritos(){
   let p = selProv.value;
   selDist.innerHTML = '<option value="">-- Todos --</option>';
   if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(d => {
-      selDist.innerHTML += `<option value="${d}">${d}</option>`;
-    });
+    DIST_BY_PROV[p].forEach(d => selDist.innerHTML += `<option value="${d}">${d}</option>`);
   }
   updateDivisiones();
 }
@@ -1380,97 +1255,24 @@ function updateDivisiones(){
   {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
 }
 
-// eventos combos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
-chkHeat.onchange = ()=> { updateLegend(); fetchPoints(); };
 
-// ------------------- DENSIDAD (metros entre puntos) --------------------
-function distanceMeters(lat1, lon1, lat2, lon2){
-  const R = 6371000; // radio Tierra en m
-  const toRad = Math.PI / 180;
-  const dLat = (lat2 - lat1) * toRad;
-  const dLon = (lon2 - lon1) * toRad;
-  const a = Math.sin(dLat/2)**2 +
-            Math.cos(lat1*toRad)*Math.cos(lat2*toRad)*Math.sin(dLon/2)**2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-// Calcula densidad (cantidad de puntos dentro de 80m)
-function computeDensities(points){
-  const radius = 80; // metros
-  for(let i=0; i<points.length; i++){
-    let count = 0;
-    const p1 = points[i];
-    for(let j=0; j<points.length; j++){
-      const p2 = points[j];
-      const d = distanceMeters(p1.lat, p1.lon, p2.lat, p2.lon);
-      if(d <= radius){
-        count++;
-      }
-    }
-    p1._density = count; // guardamos en el punto
-  }
-}
-
-function getDensityClass(d){
-  if(d >= 20) return "heat-high";   // MUY alta concentración
-  if(d >= 6)  return "heat-med";    // media
-  return "heat-low";                // baja
-}
-
-// Icono para vista de heat (iconos coloreados)
-function createHeatIcon(level, label){
-  return L.divIcon({
-    className: `heat-icon ${level}`,
-    html: `<span>${label}</span>`,
-    iconSize:[28,28],
-    iconAnchor:[14,14],
-    popupAnchor:[0,-14]
-  });
-}
-
-// ------------------- Iconos ----------------------
+// ---------------- Iconos ----------------------
 function getIcon(pt){
-  // Si heatmap está apagado => iconos originales por capa / ubicación
-  if(!chkHeat.checked){
-    const ubic = (pt.ubicacion || "").toUpperCase();
+  const ubic = (pt.ubicacion || "").toUpperCase();
 
-    if (TIPO_MAPA === "agentes") {
-      return ICON_AGENTE;
-    }
+  if (TIPO_MAPA === "agentes") return ICON_AGENTE;
+  if (ubic.includes("OFICINA")) return ICON_OFICINA;
+  if (ubic.includes("ISLA")) return ICON_ISLA;
+  if (ubic.includes("AGENTE")) return ICON_AGENTE;
 
-    if (ubic.includes("OFICINA")) {
-      return ICON_OFICINA;
-    }
-    if (ubic.includes("ISLA")) {
-      return ICON_ISLA;
-    }
-    if (ubic.includes("AGENTE")) {
-      return ICON_AGENTE;
-    }
+  if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
+  if (TIPO_MAPA === "islas") return ICON_ISLA;
 
-    if (TIPO_MAPA === "oficinas") {
-      return ICON_OFICINA;
-    }
-    if (TIPO_MAPA === "islas") {
-      return ICON_ISLA;
-    }
-    return ICON_ISLA;
-  }
-
-  // Heatmap ACTIVADO => iconos coloreados por densidad
-  const d = pt._density || 1;
-  const level = getDensityClass(d);
-
-  let label = "ATM";
-  if(TIPO_MAPA === "agentes") label = "AG";
-  if(TIPO_MAPA === "oficinas") label = "OF";
-
-  return createHeatIcon(level, label);
+  return ICON_ISLA;
 }
 
 // ---------------- Panel seleccionado ----------
@@ -1491,15 +1293,12 @@ _____________________
 • Tipo: ${pt.tipo}
 • Ubicación: ${pt.ubicacion}
 
-• Dpto/Prov/Dist:
-  ${lineaUbic}
+${lineaUbic}
 
-• Trxs Octubre: ${pt.trxs_oct ?? 0}
-• Trxs Noviembre: ${pt.trxs_nov ?? 0}
+Trxs Octubre: ${pt.trxs_oct ?? 0}
+Trxs Noviembre: ${pt.trxs_nov ?? 0}
 
-_____________________
 Promedio: ${pt.promedio}
-_____________________
 `;
   } else if(TIPO_MAPA === "oficinas"){
     texto = `
@@ -1508,15 +1307,11 @@ _____________________
 _____________________
 
 • Nombre: ${pt.nombre}
-• Dirección: ${pt.direccion}
 • División: ${pt.division}
 
-• Dpto/Prov/Dist:
-  ${lineaUbic}
+${lineaUbic}
 
-_____________________
 Promedio TRX: ${pt.promedio}
-_____________________
 `;
   } else {
     texto = `
@@ -1525,21 +1320,18 @@ _____________________
 _____________________
 
 • Nombre: ${pt.nombre}
-• Dirección: ${pt.direccion}
 • División: ${pt.division}
 • Tipo: ${pt.tipo}
 • Ubicación: ${pt.ubicacion}
 
-• Dpto/Prov/Dist:
-  ${lineaUbic}
+${lineaUbic}
 
-_____________________
 Promedio: ${pt.promedio}
-_____________________
 `;
   }
 
   atmDetalle.textContent = texto;
+
   panelResumen.classList.add("hidden");
   panelATM.classList.remove("hidden");
   panelATM.classList.add("glow");
@@ -1551,7 +1343,7 @@ btnVolver.addEventListener("click", () => {
   panelResumen.classList.remove("hidden");
 });
 
-// ------------------- FETCH + RENDER ----------------
+// ---------------- FETCH + RENDER ----------
 async function fetchPoints(){
   const d  = selDep.value;
   const p  = selProv.value;
@@ -1559,6 +1351,7 @@ async function fetchPoints(){
   const dv = selDiv.value;
 
   const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
+
   infoBox.textContent = "...";
 
   panelATM.classList.add("hidden");
@@ -1573,10 +1366,7 @@ async function fetchPoints(){
   infoBox.textContent = data.total_atms ?? pts.length;
   markers.clearLayers();
 
-  let bounds  = [];
-
-  // Calcula densidad por punto (para heat íconos)
-  computeDensities(pts);
+  let bounds = [];
 
   pts.forEach(pt => {
     const icon = getIcon(pt);
@@ -1588,9 +1378,9 @@ async function fetchPoints(){
 
   if(bounds.length === 1){
     map.setView(bounds[0], 16);
-  }else if(bounds.length > 1){
+  } else if(bounds.length > 1){
     map.fitBounds(bounds, {padding:[20,20]});
-  }else{
+  } else {
     map.setView(INITIAL_CENTER, INITIAL_ZOOM);
   }
 
@@ -1598,26 +1388,25 @@ async function fetchPoints(){
   resSuma.textContent = Math.round(suma).toString();
 
   if(TIPO_MAPA === "agentes"){
-    resAgentesTotal.textContent = (data.total_agentes || data.total_atms || 0).toString();
-    resCapaA1.textContent = (data.total_capa_A1 || 0).toString();
-    resCapaA2.textContent = (data.total_capa_A2 || 0).toString();
-    resCapaA3.textContent = (data.total_capa_A3 || 0).toString();
-    resCapaB.textContent  = (data.total_capa_B  || 0).toString();
-    resCapaC.textContent  = (data.total_capa_C  || 0).toString();
+    resAgentesTotal.textContent = data.total_agentes;
+    resCapaA1.textContent = data.total_capa_A1;
+    resCapaA2.textContent = data.total_capa_A2;
+    resCapaA3.textContent = data.total_capa_A3;
+    resCapaB.textContent  = data.total_capa_B;
+    resCapaC.textContent  = data.total_capa_C;
   } else if(TIPO_MAPA === "oficinas"){
-    resOficinasCount.textContent = (data.total_oficinas || data.total_atms || 0).toString();
-    resOficinasSuma.textContent  = Math.round(data.suma_total || 0).toString();
+    resOficinasCount.textContent = data.total_oficinas;
+    resOficinasSuma.textContent  = Math.round(data.suma_total || 0);
   } else {
-    resTotal.textContent = (data.total_atms || 0).toString();
-    resOfi.textContent   = (data.total_oficinas || 0).toString();
-    resIsla.textContent  = (data.total_islas || 0).toString();
-    resDisp.textContent  = (data.total_disp || 0).toString();
-    resMon.textContent   = (data.total_mon  || 0).toString();
-    resRec.textContent   = (data.total_rec  || 0).toString();
+    resTotal.textContent = data.total_atms;
+    resOfi.textContent   = data.total_oficinas;
+    resIsla.textContent  = data.total_islas;
+    resDisp.textContent  = data.total_disp;
+    resMon.textContent   = data.total_mon;
+    resRec.textContent   = data.total_rec;
   }
 }
 
-// Inicial
 updateProvincias();
 fetchPoints();
 </script>
@@ -1625,6 +1414,3 @@ fetchPoints();
 </body>
 </html>
 """
-
-if __name__ == "__main__":
-    app.run(debug=True)
