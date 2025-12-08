@@ -263,12 +263,24 @@ for d in DEPARTAMENTOS_ISLAS:
 
 PROVINCIAS_AGENTES_BY_DEPT = {}
 for d in DEPARTAMENTOS_AGENTES:
-    provs = df_agentes[df_agentes[COLA_DEPT] == d][COLA_PROV].dropna().astype(str).unique().tolist()
+    provs = (
+        df_agentes[df_agentes[COLA_DEPT] == d][COLA_PROV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     PROVINCIAS_AGENTES_BY_DEPT[d] = sorted(set(provs))
 
 PROVINCIAS_OFICINAS_BY_DEPT = {}
 for d in DEPARTAMENTOS_OFICINAS:
-    provs = df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_PROV].dropna().astype(str).unique().tolist()
+    provs = (
+        df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_PROV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     PROVINCIAS_OFICINAS_BY_DEPT[d] = sorted(set(provs))
 
 # --------- DISTRITOS POR CAPA ----------
@@ -281,13 +293,25 @@ for p in PROVS_ISLAS:
 PROVS_AGENTES = sorted(df_agentes[COLA_PROV].dropna().astype(str).unique())
 DIST_AGENTES_BY_PROV = {}
 for p in PROVS_AGENTES:
-    dists = df_agentes[df_agentes[COLA_PROV] == p][COLA_DIST].dropna().astype(str).unique().tolist()
+    dists = (
+        df_agentes[df_agentes[COLA_PROV] == p][COLA_DIST]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIST_AGENTES_BY_PROV[p] = sorted(set(dists))
 
 PROVS_OFICINAS = sorted(df_oficinas[COLF_PROV].dropna().astype(str).unique())
 DIST_OFICINAS_BY_PROV = {}
 for p in PROVS_OFICINAS:
-    dists = df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIST].dropna().astype(str).unique().tolist()
+    dists = (
+        df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIST]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIST_OFICINAS_BY_PROV[p] = sorted(set(dists))
 
 # --------- DIVISIONES POR CAPA ----------
@@ -313,18 +337,36 @@ DIVISIONES_ISLAS = sorted(df[COL_DIV].dropna().astype(str).unique())
 # AGENTES
 DIV_AGENTES_BY_DEPT = {}
 for d in DEPARTAMENTOS_AGENTES:
-    divs = df_agentes[df_agentes[COLA_DEPT] == d][COLA_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_agentes[df_agentes[COLA_DEPT] == d][COLA_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_AGENTES_BY_DEPT[d] = sorted(set(divs))
 
 DIV_AGENTES_BY_PROV = {}
 for p in PROVS_AGENTES:
-    divs = df_agentes[df_agentes[COLA_PROV] == p][COLA_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_agentes[df_agentes[COLA_PROV] == p][COLA_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_AGENTES_BY_PROV[p] = sorted(set(divs))
 
 DISTS_AGENTES = sorted(df_agentes[COLA_DIST].dropna().astype(str).unique())
 DIV_AGENTES_BY_DIST = {}
 for di in DISTS_AGENTES:
-    divs = df_agentes[df_agentes[COLA_DIST] == di][COLA_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_agentes[df_agentes[COLA_DIST] == di][COLA_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_AGENTES_BY_DIST[di] = sorted(set(divs))
 
 DIVISIONES_AGENTES = sorted(df_agentes[COLA_DIV].dropna().astype(str).unique())
@@ -332,18 +374,36 @@ DIVISIONES_AGENTES = sorted(df_agentes[COLA_DIV].dropna().astype(str).unique())
 # OFICINAS
 DIV_OFICINAS_BY_DEPT = {}
 for d in DEPARTAMENTOS_OFICINAS:
-    divs = df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_oficinas[df_oficinas[COLF_DEPT] == d][COLF_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_OFICINAS_BY_DEPT[d] = sorted(set(divs))
 
 DIV_OFICINAS_BY_PROV = {}
 for p in PROVS_OFICINAS:
-    divs = df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_oficinas[df_oficinas[COLF_PROV] == p][COLF_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_OFICINAS_BY_PROV[p] = sorted(set(divs))
 
 DISTS_OFICINAS = sorted(df_oficinas[COLF_DIST].dropna().astype(str).unique())
 DIV_OFICINAS_BY_DIST = {}
 for di in DISTS_OFICINAS:
-    divs = df_oficinas[df_oficinas[COLF_DIST] == di][COLF_DIV].dropna().astype(str).unique().tolist()
+    divs = (
+        df_oficinas[df_oficinas[COLF_DIST] == di][COLF_DIV]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
     DIV_OFICINAS_BY_DIST[di] = sorted(set(divs))
 
 DIVISIONES_OFICINAS = sorted(df_oficinas[COLF_DIV].dropna().astype(str).unique())
@@ -458,6 +518,7 @@ def logout():
 
 # ============================================================
 # 5. SELECTOR DE CAPAS
+#   ✅ FIX: Integral usa banco.png (antes integral.png podía estar vacío)
 # ============================================================
 SELECTOR_TEMPLATE = """
 <!DOCTYPE html>
@@ -542,7 +603,8 @@ h1{
   </div>
 
   <div class="card" onclick="location.href='/mapa/integral'">
-    <img src="{{ url_for('static', filename='integral.png') }}" alt="Mapa Integral BBVA">
+    <!-- ✅ aquí: banco.png -->
+    <img src="{{ url_for('static', filename='banco.png') }}" alt="Mapa Integral BBVA">
     <div class="card-title"><span class="icon">🗺️</span>Integral</div>
   </div>
 
@@ -561,7 +623,6 @@ def selector():
 
 # ============================================================
 # 6B. RUTA MAPA INTEGRAL (OFICINAS + ATMs + AGENTES)
-#      (la ponemos ANTES de /mapa/<tipo> para evitar choques)
 # ============================================================
 @app.route("/mapa/integral")
 @login_required
@@ -1047,6 +1108,8 @@ def api_points_integral():
 
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
+#   ✅ FIX: INTEGRAL muestra banner banco.png al inicio
+#   ✅ FIX: Leyendas con IMÁGENES reales (atm_oficina/atm_isla/oficina/agente)
 # ============================================================
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -1174,6 +1237,43 @@ input[type="checkbox"]{
   gap:8px;
 }
 .muted{
+  color:var(--muted);
+  font-size:12px;
+}
+
+/* Banner integral */
+.brand-card{
+  padding:10px;
+}
+.brand-card img{
+  width:100%;
+  height:120px;
+  object-fit:cover;
+  border-radius:10px;
+  display:block;
+}
+
+/* Leyendas con imágenes */
+.legend{
+  margin-top:10px;
+}
+.legend .legend-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top:6px;
+}
+.legend .legend-item img{
+  width:28px;
+  height:28px;
+  object-fit:contain;
+  background:#fff;
+  border:1px solid #e6eef8;
+  border-radius:8px;
+  padding:3px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);
+}
+.legend .legend-item .lbl{
   color:var(--muted);
   font-size:12px;
 }
@@ -1320,9 +1420,13 @@ input[type="checkbox"]{
   <div class="side">
 
     {% if tipo_mapa == 'integral' %}
+      <!-- ✅ Banner (banco.png) al inicio (para que no salga vacío) -->
+      <div class="side-card brand-card">
+        <img src="{{ url_for('static', filename='banco.png') }}" alt="BBVA">
+      </div>
+
       <!-- =========================
-           3 VENTANAS SEPARADAS (DERECHA) — INTEGRAL
-           Se muestran 3 al inicio (los 3 checks vienen marcados)
+           3 VENTANAS SEPARADAS — INTEGRAL
            ========================= -->
 
       <div id="panelATMResumen" class="side-card">
@@ -1345,8 +1449,18 @@ input[type="checkbox"]{
         <div class="muted">Monedero: <span id="resAtmMon">0</span></div>
         <div class="muted">Reciclador: <span id="resAtmRec">0</span></div>
 
-        <div style="margin-top:10px; font-weight:700;">Leyenda</div>
-        <div class="muted">Icono: atm_oficina / atm_isla</div>
+        <!-- ✅ Leyenda con imágenes reales -->
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
+            <div class="lbl">ATM en Oficina</div>
+          </div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
+            <div class="lbl">ATM en Isla</div>
+          </div>
+        </div>
       </div>
 
       <div id="panelOfiResumen" class="side-card">
@@ -1360,8 +1474,14 @@ input[type="checkbox"]{
           <b>Suma TRX:</b> <span id="resOfiSuma">0</span>
         </div>
 
-        <div style="margin-top:10px; font-weight:700;">Leyenda</div>
-        <div class="muted">Icono: oficina.png</div>
+        <!-- ✅ Leyenda con imagen real -->
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
+            <div class="lbl">Oficina</div>
+          </div>
+        </div>
       </div>
 
       <div id="panelAgResumen" class="side-card">
@@ -1382,8 +1502,14 @@ input[type="checkbox"]{
         <div class="muted">B : <span id="resAgB">0</span></div>
         <div class="muted">C : <span id="resAgC">0</span></div>
 
-        <div style="margin-top:10px; font-weight:700;">Leyenda</div>
-        <div class="muted">Icono: agente.png</div>
+        <!-- ✅ Leyenda con imagen real -->
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
+            <div class="lbl">Agente</div>
+          </div>
+        </div>
       </div>
 
     {% else %}
@@ -1406,11 +1532,33 @@ input[type="checkbox"]{
           <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
           <div class="muted">Monedero: <span id="resMon">0</span></div>
           <div class="muted">Reciclador: <span id="resRec">0</span></div>
+
+          <!-- ✅ Leyenda ISLAS (2 íconos) -->
+          <div class="legend">
+            <div style="font-weight:700;">Leyenda</div>
+            <div class="legend-item">
+              <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
+              <div class="lbl">ATM en Oficina</div>
+            </div>
+            <div class="legend-item">
+              <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
+              <div class="lbl">ATM en Isla</div>
+            </div>
+          </div>
         </div>
 
         <div id="bloqueOficinas" class="hidden">
           <div class="muted">Cantidad total de oficinas: <span id="resOficinasCount">0</span></div>
           <div class="muted" style="margin-top:4px;">Suma total de TRX: <span id="resOficinasSuma">0</span></div>
+
+          <!-- ✅ Leyenda OFICINAS (icono real) -->
+          <div class="legend">
+            <div style="font-weight:700;">Leyenda</div>
+            <div class="legend-item">
+              <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
+              <div class="lbl">Oficina</div>
+            </div>
+          </div>
         </div>
 
         <div id="bloqueAgentes" class="hidden">
@@ -1420,6 +1568,15 @@ input[type="checkbox"]{
           <div class="muted">A3: <span id="resCapaA3">0</span></div>
           <div class="muted">B : <span id="resCapaB">0</span></div>
           <div class="muted">C : <span id="resCapaC">0</span></div>
+
+          <!-- ✅ Leyenda AGENTES (icono real) -->
+          <div class="legend">
+            <div style="font-weight:700;">Leyenda</div>
+            <div class="legend-item">
+              <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
+              <div class="lbl">Agente</div>
+            </div>
+          </div>
         </div>
       </div>
     {% endif %}
@@ -1841,7 +1998,6 @@ const panelAgResumen  = document.getElementById("panelAgResumen");
 function syncIntegralPanelsVisibility(){
   if(TIPO_MAPA !== "integral") return;
 
-  // Mostrar/ocultar paneles según checks (tu pedido)
   if(panelATMResumen) panelATMResumen.classList.toggle("hidden", !(chkATMs && chkATMs.checked));
   if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", !(chkOficinas && chkOficinas.checked));
   if(panelAgResumen)  panelAgResumen.classList.toggle("hidden", !(chkAgentes && chkAgentes.checked));
@@ -1873,7 +2029,6 @@ async function fetchIntegral(){
   let bounds = [];
   let heatPts = [];
 
-  // ===== Render según checks =====
   const showATMs = !chkATMs || chkATMs.checked;
   const showOfi  = !chkOficinas || chkOficinas.checked;
   const showAg   = !chkAgentes || chkAgentes.checked;
@@ -1887,7 +2042,6 @@ async function fetchIntegral(){
       m.on("click",()=>showATMPanel(pt));
       markers.addLayer(m);
 
-      // Heatmap solo ATMs visibles
       heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
       bounds.push([pt.lat, pt.lon]);
     });
@@ -1930,7 +2084,6 @@ async function fetchIntegral(){
   }
 
   // ====== Actualizar 3 ventanas (valores filtrados) ======
-  // ATMs panel
   const elAtmTotal = document.getElementById("resAtmTotal");
   const elAtmSuma  = document.getElementById("resAtmSuma");
   const elAtmOfi   = document.getElementById("resAtmEnOfi");
@@ -1942,7 +2095,6 @@ async function fetchIntegral(){
   let atm_total = (data.total_atms || 0);
   let atm_suma  = (data.suma_atms || 0);
 
-  // Desgloses ATMs (como en capa ISLAS)
   let atm_ofi = 0, atm_isla = 0, atm_disp = 0, atm_mon = 0, atm_rec = 0;
   (data.atms || []).forEach(pt=>{
     const u = (pt.ubicacion || "").toUpperCase();
@@ -2004,7 +2156,7 @@ async function fetchIntegral(){
   if(elB)  elB.textContent  = showAg ? b  : 0;
   if(elC)  elC.textContent  = showAg ? c  : 0;
 
-  // ====== Contador superior: SOLO lo que está visible ======
+  // Contador superior: SOLO visible
   const visibleCount =
     (showATMs ? atm_total : 0) +
     (showOfi  ? ofi_total : 0) +
@@ -2012,7 +2164,6 @@ async function fetchIntegral(){
 
   infoBox.textContent = visibleCount;
 
-  // Mostrar/ocultar ventanas según checks
   syncIntegralPanelsVisibility();
 }
 
@@ -2058,7 +2209,6 @@ if(TIPO_MAPA === "integral"){
 // Inicializar combos y render
 updateProvincias();
 if(TIPO_MAPA === "integral"){
-  // Al inicio ya vienen los 3 checks marcados, por eso verás 3 ventanas.
   syncIntegralPanelsVisibility();
   fetchIntegral();
 } else {
