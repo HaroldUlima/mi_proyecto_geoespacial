@@ -866,11 +866,13 @@ def api_points():
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
 # ============================================================
+
 TEMPLATE_MAPA = """
 <!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
+
 
 <title>
   Mapa BBVA —
@@ -880,6 +882,9 @@ TEMPLATE_MAPA = """
     {{ tipo_mapa|upper }}
   {% endif %}
 </title>
+
+
+
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -1025,8 +1030,10 @@ input[type="checkbox"]{
   animation:panelGlow 2.2s ease-in-out infinite;
 }
 
+/* Ocultar */
 .hidden{ display:none; }
 
+/* Popup Leaflet */
 .leaflet-popup-content-wrapper{
   border-radius:12px;
   box-shadow:0 6px 20px rgba(0,0,0,0.25);
@@ -1042,6 +1049,7 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
+/* Iconos */
 .icon-round div{
   width:14px;
   height:14px;
@@ -1054,14 +1062,18 @@ input[type="checkbox"]{
 <body>
 
 <header>
-  <h1>
-    Mapa BBVA —
-    {% if tipo_mapa == 'islas' %}
-      ATMs
-    {% else %}
-      {{ tipo_mapa|upper }}
-    {% endif %}
-  </h1>
+
+
+<h1>
+  Mapa BBVA —
+  {% if tipo_mapa == 'islas' %}
+    ATMs
+  {% else %}
+    {{ tipo_mapa|upper }}
+  {% endif %}
+</h1>
+
+
   <a href="/logout" class="logout">Cerrar sesión</a>
 </header>
 
@@ -1163,7 +1175,7 @@ input[type="checkbox"]{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/markerCluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -1177,35 +1189,64 @@ const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
-// ICONOS
+// ======================================================
+//  ICONOS SEPARADOS POR CAPA — CORRECCIÓN DEFINITIVA
+// ======================================================
+
+// ISLAS (ATMs dentro de oficina e islas)
 const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
 const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
 
-const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina.png') }}";
-const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente.png') }}";
+// OFICINAS
+const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
+
+// AGENTES
+const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
+
+// ======================================================
+//     ICONOS LEAFLET
+// ======================================================
 
 const ICON_ATM_OFICINA = L.icon({
-  iconUrl: ICON_ATM_OFICINA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
-});
-const ICON_ATM_ISLA = L.icon({
-  iconUrl: ICON_ATM_ISLA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
-});
-const ICON_OFICINA = L.icon({
-  iconUrl: ICON_OFICINA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
-});
-const ICON_AGENTE = L.icon({
-  iconUrl: ICON_AGENTE_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
+  iconUrl: ICON_ATM_OFICINA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
 });
 
-// LÓGICA DE ICONOS
+const ICON_ATM_ISLA = L.icon({
+  iconUrl: ICON_ATM_ISLA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_OFICINA = L.icon({
+  iconUrl: ICON_OFICINA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_AGENTE = L.icon({
+  iconUrl: ICON_AGENTE_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+// ======================================================
+//       LÓGICA DE ICONOS POR CAPA — DEFINITIVA
+// ======================================================
 function getIcon(pt){
   const ubic = (pt.ubicacion || "").toUpperCase();
 
-  if(TIPO_MAPA === "agentes") return ICON_AGENTE;
-  if(TIPO_MAPA === "oficinas") return ICON_OFICINA;
+  if (TIPO_MAPA === "agentes") return ICON_AGENTE;
+  if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
 
-  if(TIPO_MAPA === "islas"){
+  if (TIPO_MAPA === "islas"){
     if (ubic.includes("OFICINA")) return ICON_ATM_OFICINA;
+    if (ubic.includes("ISLA")) return ICON_ATM_ISLA;
     return ICON_ATM_ISLA;
   }
   return ICON_ATM_ISLA;
@@ -1216,10 +1257,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 })
 
 const markers = L.markerClusterGroup({chunkedLoading:true});
 const heat    = L.heatLayer([], {radius:28, blur:22});
+
 markers.addTo(map);
 heat.addTo(map);
 
-// COMBOS
+// ------------------- COMBOS DEPENDIENTES --------------------
 const selDep  = document.getElementById("selDepartamento");
 const selProv = document.getElementById("selProvincia");
 const selDist = document.getElementById("selDistrito");
@@ -1231,46 +1273,48 @@ function updateProvincias(){
   let d = selDep.value;
   selProv.innerHTML = '<option value="">-- Todas --</option>';
   if(d && PROV_BY_DEPT[d]){
-    PROV_BY_DEPT[d].forEach(p=>{
-      selProv.innerHTML+=`<option value="${p}">${p}</option>`;
+    PROV_BY_DEPT[d].forEach(p => {
+      selProv.innerHTML += `<option value="${p}">${p}</option>`;
     });
   }
   updateDistritos();
   updateDivisiones();
 }
+
 function updateDistritos(){
   let p = selProv.value;
   selDist.innerHTML = '<option value="">-- Todos --</option>';
   if(p && DIST_BY_PROV[p]){
-    DIST_BY_PROV[p].forEach(d=>{
-      selDist.innerHTML+=`<option value="${d}">${d}</option>`;
+    DIST_BY_PROV[p].forEach(d => {
+      selDist.innerHTML += `<option value="${d}">${d}</option>`;
     });
   }
   updateDivisiones();
 }
+
 function updateDivisiones(){
   let d  = selDep.value;
   let p  = selProv.value;
   let di = selDist.value;
 
-  selDiv.innerHTML='<option value="">-- Todas --</option>';
+  selDiv.innerHTML = '<option value="">-- Todas --</option>';
 
   if(di && DIV_BY_DIST[di]){
-    DIV_BY_DIST[di].forEach(v=>selDiv.innerHTML+=`<option value="${v}">${v}</option>`);
+    DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
   if(p && DIV_BY_PROV[p]){
-    DIV_BY_PROV[p].forEach(v=>selDiv.innerHTML+=`<option value="${v}">${v}</option>`);
+    DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
   if(d && DIV_BY_DEPT[d]){
-    DIV_BY_DEPT[d].forEach(v=>selDiv.innerHTML+=`<option value="${v}">${v}</option>`);
+    DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
     return;
   }
 
-  {{ divisiones|tojson }}.forEach(v=>{
-    selDiv.innerHTML+=`<option value="${v}">${v}</option>`;
-  });
+  {{ divisiones|tojson }}.forEach(v =>
+    selDiv.innerHTML += `<option value="${v}">${v}</option>`
+  );
 }
 
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
@@ -1278,27 +1322,33 @@ selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
 
+
+// ======================================================
 // PANEL DETALLE
+// ======================================================
 const panelResumen       = document.getElementById("panelResumen");
 const panelATM           = document.getElementById("panelATM");
 const panelATMTitle      = document.getElementById("panelATMTitle");
 const atmDetalle         = document.getElementById("atmDetalle");
 const btnVolver          = document.getElementById("btnVolver");
 
-const bloqueIslasOfi     = document.getElementById("bloqueIslasOfi");
-const bloqueOficinas     = document.getElementById("bloqueOficinas");
-const bloqueAgentes      = document.getElementById("bloqueAgentes");
-const legendBox          = document.getElementById("legendBox");
+// Config inicial según capa
+const bloqueIslasOfi  = document.getElementById("bloqueIslasOfi");
+const bloqueOficinas  = document.getElementById("bloqueOficinas");
+const bloqueAgentes   = document.getElementById("bloqueAgentes");
+const legendBox       = document.getElementById("legendBox");
 
-const resSuma            = document.getElementById("resSuma");
-const resTotal           = document.getElementById("resTotal");
-const resOfi             = document.getElementById("resOfi");
-const resIsla            = document.getElementById("resIsla");
-const resDisp            = document.getElementById("resDisp");
-const resMon             = document.getElementById("resMon");
-const resRec             = document.getElementById("resRec");
-const resOficinasCount   = document.getElementById("resOficinasCount");
-const resOficinasSuma    = document.getElementById("resOficinasSuma");
+const resSuma         = document.getElementById("resSuma");
+const resTituloBloque = document.getElementById("resTituloBloque");
+const resTotal        = document.getElementById("resTotal");
+const resOfi          = document.getElementById("resOfi");
+const resIsla         = document.getElementById("resIsla");
+const resDisp         = document.getElementById("resDisp");
+const resMon          = document.getElementById("resMon");
+const resRec          = document.getElementById("resRec");
+
+const resOficinasCount = document.getElementById("resOficinasCount");
+const resOficinasSuma  = document.getElementById("resOficinasSuma");
 
 const resAgentesTotal = document.getElementById("resAgentesTotal");
 const resCapaA1       = document.getElementById("resCapaA1");
@@ -1307,7 +1357,7 @@ const resCapaA3       = document.getElementById("resCapaA3");
 const resCapaB        = document.getElementById("resCapaB");
 const resCapaC        = document.getElementById("resCapaC");
 
-// Ajuste según capa
+// Panel por capa
 if(TIPO_MAPA === "oficinas"){
   bloqueIslasOfi.classList.add("hidden");
   bloqueAgentes.classList.add("hidden");
@@ -1320,8 +1370,8 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🏦 ATMs Oficina (icono Atm oficina)</div>
-    <div>🌐 ATMs Isla (icono Atm isla)</div>
+    <div>🏦 ATMS Oficina (icono oficina)</div>
+    <div>🌐 ATMS Isla (icono isla)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 
@@ -1329,11 +1379,14 @@ if(TIPO_MAPA === "oficinas"){
   bloqueIslasOfi.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
-  legendBox.innerHTML = `<div>🧍 Agente</div>`;
+  legendBox.innerHTML = `<div>🧍 Agente (icono agente)</div>`;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
 
-// Mostrar detalle
+
+// ======================================================
+// FUNCIÓN PANEL SELECCIONADO (DETALLE)
+// ======================================================
 function showATMPanel(pt){
   const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
   let texto = "";
@@ -1406,13 +1459,17 @@ _____________________
   panelATM.classList.remove("hidden");
   panelATM.classList.add("glow");
 }
-btnVolver.addEventListener("click",()=>{
+
+btnVolver.addEventListener("click", () => {
   panelATM.classList.add("hidden");
   panelATM.classList.remove("glow");
   panelResumen.classList.remove("hidden");
 });
 
-// FETCH + RENDER
+
+// ======================================================
+// FETCH + RENDER DE LOS PUNTOS
+// ======================================================
 async function fetchPoints(){
   const d  = selDep.value;
   const p  = selProv.value;
@@ -1421,7 +1478,7 @@ async function fetchPoints(){
 
   const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
 
-  infoBox.textContent="...";
+  infoBox.textContent = "...";
   panelATM.classList.add("hidden");
 
   const res = await fetch(`/api/points?${qs}`);
@@ -1435,13 +1492,13 @@ async function fetchPoints(){
   heat.setLatLngs([]);
 
   let heatPts = [];
-  let bounds = [];
+  let bounds  = [];
 
-  pts.forEach(pt=>{
+  pts.forEach(pt => {
     const icon = getIcon(pt);
-    const marker = L.marker([pt.lat, pt.lon], {icon});
-    marker.on("click",()=>showATMPanel(pt));
-    markers.addLayer(marker);
+    const m = L.marker([pt.lat, pt.lon], {icon});
+    m.on("click", () => showATMPanel(pt));
+    markers.addLayer(m);
 
     heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
@@ -1449,11 +1506,11 @@ async function fetchPoints(){
 
   heat.setLatLngs(heatPts);
 
-  if(bounds.length===1){
+  if(bounds.length === 1){
     map.setView(bounds[0], 16);
-  } else if(bounds.length>1){
-    map.fitBounds(bounds,{padding:[20,20]});
-  } else {
+  }else if(bounds.length > 1){
+    map.fitBounds(bounds, {padding:[20,20]});
+  }else{
     map.setView(INITIAL_CENTER, INITIAL_ZOOM);
   }
 
@@ -1462,6 +1519,10 @@ async function fetchPoints(){
   } else {
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
+
+  // ============================
+  // RESUMENES POR CAPA
+  // ============================
 
   resSuma.textContent = Math.round(data.suma_total || 0);
 
@@ -1487,6 +1548,7 @@ async function fetchPoints(){
   }
 }
 
+// Inicializar combos y render
 updateProvincias();
 fetchPoints();
 
