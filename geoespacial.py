@@ -1,6 +1,6 @@
 # ============================================================
 #   BACKEND COMPLETO + LOGIN + SELECTOR
-#   CAPAS: ATMs + AGENTES + OFICINAS
+#   CAPAS: ISLAS (ATMs) + AGENTES + OFICINAS
 # ============================================================
 
 import os
@@ -72,7 +72,7 @@ def find_col(keys):
     return None
 
 
-# ---------------- Detectar columnas principales (ISLAS/ATMs) ----------------
+# ---------------- Detectar columnas principales (ISLAS) ----------------
 COL_ATM = find_col(["COD_ATM", "ATM"]) or "ATM"
 COL_NAME = find_col(["NOMBRE", "CAJERO"]) or None
 COL_DEPT = find_col(["DEPARTAMENTO"]) or "DEPARTAMENTO"
@@ -248,7 +248,7 @@ df_oficinas[COLF_TRX] = pd.to_numeric(df_oficinas[COLF_TRX], errors="coerce").fi
 
 # ============================================================
 # 3. LISTAS PARA FILTROS — JERARQUÍA POR CADA CAPA
-#    (SIN MEZCLAR ATMs / AGENTES / OFICINAS)
+#    (SIN MEZCLAR ISLAS / AGENTES / OFICINAS)
 # ============================================================
 
 # --------- DEPARTAMENTOS POR CAPA ----------
@@ -292,7 +292,7 @@ for p in PROVS_OFICINAS:
     DIST_OFICINAS_BY_PROV[p] = sorted(set(dists))
 
 # --------- DIVISIONES POR CAPA ----------
-# ATMs (antes ISLAS)
+# ISLAS
 DIV_ISLAS_BY_DEPT = {}
 for d in DEPARTAMENTOS_ISLAS:
     divs = df[df[COL_DEPT] == d][COL_DIV].dropna().astype(str).unique().tolist()
@@ -532,9 +532,9 @@ h1{
     <div class="card-title"><span class="icon">🏦</span>Oficinas</div>
   </div>
 
-  <div class="card" onclick="location.href='/mapa/atms'">
-    <img src="{{ url_for('static', filename='isla.png') }}" alt="ATMs BBVA">
-    <div class="card-title"><span class="icon">🌐</span>ATMs</div>
+  <div class="card" onclick="location.href='/mapa/islas'">
+    <img src="{{ url_for('static', filename='isla.png') }}" alt="Islas BBVA">
+    <div class="card-title"><span class="icon">🌐</span>Islas</div>
   </div>
 
   <div class="card" onclick="location.href='/mapa/agentes'">
@@ -561,13 +561,13 @@ def selector():
 @app.route("/mapa/<tipo>")
 @login_required
 def mapa_tipo(tipo):
-    if tipo not in ["oficinas", "atms", "agentes"]:
+    if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
 
     # Elegir listas SEGÚN LA CAPA (sin mezclar)
-    if tipo == "atms":
+    if tipo == "islas":
         departamentos = DEPARTAMENTOS_ISLAS
         provincias_by_dept = PROVINCIAS_ISLAS_BY_DEPT
         dist_by_prov = DIST_ISLAS_BY_PROV
@@ -608,7 +608,7 @@ def mapa_tipo(tipo):
 
 
 # ============================================================
-# 7. API /api/points — ATMs + AGENTES + OFICINAS
+# 7. API /api/points — ISLAS + AGENTES + OFICINAS
 # ============================================================
 @app.route("/api/points")
 @login_required
@@ -620,8 +620,8 @@ def api_points():
     dist = request.args.get("distrito", "").upper().strip()
     divi = request.args.get("division", "").upper().strip()
 
-    # ---------------------- CAPA ATMs (ISLAS/OFICINAS) ----------------------
-    if tipo_mapa == "atms":
+    # ---------------------- CAPA ISLAS (ATMs) ----------------------
+    if tipo_mapa == "islas":
         dff = df.copy()
 
         dff[COL_DEPT] = dff[COL_DEPT].astype(str).str.upper().str.strip()
@@ -643,7 +643,7 @@ def api_points():
         dff_layer = dff
 
         total_atms = int(len(dff_layer))
-        # 🔵 SUMA TOTAL DE TRANSACCIONES
+        # 🔵 SUMA TOTAL DE TRANSACCIONES (antes promedio_total)
         suma_total = float(dff_layer[PROM_COL].sum()) if total_atms > 0 else 0.0
 
         total_oficinas = int(dff_layer[COL_UBIC].str.contains("OFICINA", na=False).sum())
@@ -1166,10 +1166,10 @@ const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
 // ======================================================
-//  ICONOS SEPARADOS POR CAPA
+//  ICONOS SEPARADOS POR CAPA — CORRECCIÓN DEFINITIVA
 // ======================================================
 
-// ATMs
+// ISLAS (ATMs dentro de oficina e islas)
 const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
 const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
 
@@ -1212,7 +1212,7 @@ const ICON_AGENTE = L.icon({
 });
 
 // ======================================================
-//       LÓGICA DE ICONOS POR CAPA
+//       LÓGICA DE ICONOS POR CAPA — DEFINITIVA
 // ======================================================
 function getIcon(pt){
   const ubic = (pt.ubicacion || "").toUpperCase();
@@ -1220,7 +1220,7 @@ function getIcon(pt){
   if (TIPO_MAPA === "agentes") return ICON_AGENTE;
   if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
 
-  if (TIPO_MAPA === "atms"){
+  if (TIPO_MAPA === "islas"){
     if (ubic.includes("OFICINA")) return ICON_ATM_OFICINA;
     if (ubic.includes("ISLA")) return ICON_ATM_ISLA;
     return ICON_ATM_ISLA;
@@ -1341,13 +1341,13 @@ if(TIPO_MAPA === "oficinas"){
   legendBox.innerHTML = `<div>🏦 Oficina</div>`;
   panelATMTitle.textContent = "Panel de la oficina seleccionada";
 
-}else if(TIPO_MAPA === "atms"){
+}else if(TIPO_MAPA === "islas"){
   bloqueIslasOfi.classList.remove("hidden");
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🏦 ATM en oficina</div>
-    <div>🌐 ATM en isla</div>
+    <div>🏦 Oficina (icono oficina)</div>
+    <div>🌐 Isla (icono isla)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 
@@ -1355,7 +1355,7 @@ if(TIPO_MAPA === "oficinas"){
   bloqueIslasOfi.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
-  legendBox.innerHTML = `<div>🧍 Agente</div>`;
+  legendBox.innerHTML = `<div>🧍 Agente (icono agente)</div>`;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
 
