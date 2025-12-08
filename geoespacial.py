@@ -1254,7 +1254,9 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.remove("hidden");
   legendBox.innerHTML = `
-    <div>🏦 Oficina</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <img src="${ICON_OFICINA_URL}" width="22" height="22"> Oficina
+    </div>
   `;
   panelATMTitle.textContent = "Panel de la oficina seleccionada";
 } else if(TIPO_MAPA === "islas"){
@@ -1264,8 +1266,12 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🏦 Oficina (icono oficina)</div>
-    <div>🌐 Isla (icono isla)</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <img src="${ICON_OFICINA_URL}" width="22" height="22"> ATM en Oficina
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <img src="${ICON_ISLA_URL}" width="22" height="22"> ATM en Isla
+    </div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 } else if(TIPO_MAPA === "agentes"){
@@ -1274,7 +1280,9 @@ if(TIPO_MAPA === "oficinas"){
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
   legendBox.innerHTML = `
-    <div>🧍 Agente (icono agente)</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <img src="${ICON_AGENTE_URL}" width="22" height="22"> Agente
+    </div>
   `;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
