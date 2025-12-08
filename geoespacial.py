@@ -1346,7 +1346,7 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🏦 Oficina (icono oficina)</div>
+    <div>🏦 Atms Oficina (icono Atms oficina)</div>
     <div>🌐 Atms isla (icono Atms isla)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
