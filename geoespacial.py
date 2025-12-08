@@ -862,7 +862,6 @@ def api_points():
         }
     )
 
-
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
 # ============================================================
@@ -1036,12 +1035,28 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
-/* Iconos personalizados */
-.icon-round div{
-  width:14px;
-  height:14px;
+/* Iconos personalizados para heatmap por iconos */
+.heat-icon{
+  width:28px;
+  height:28px;
   border-radius:50%;
-  border:2px solid white;
+  border:2px solid #ffffff;
+  box-shadow:0 0 6px rgba(0,0,0,0.4);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+  font-weight:700;
+  color:#ffffff;
+}
+.heat-low{
+  background:#2ecc71; /* verde */
+}
+.heat-med{
+  background:#f1c40f; /* amarillo */
+}
+.heat-high{
+  background:#e74c3c; /* rojo */
 }
 </style>
 </head>
@@ -1158,7 +1173,6 @@ input[type="checkbox"]{
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
@@ -1168,14 +1182,14 @@ const DIV_BY_PROV  = {{ div_by_prov|tojson }};
 const DIV_BY_DIST  = {{ div_by_dist|tojson }};
 const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-const INITIAL_ZOOM   = {{ initial_zoom }};
+const INITIAL_ZOOM   = {{ initial_zoom }}];
 
-// URLs de iconos (mismas imágenes del selector de capas)
+// URLs de iconos originales (vista normal)
 const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
 const ICON_ISLA_URL    = "{{ url_for('static', filename='isla.png') }}";
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
-// Iconos Leaflet reutilizables
+// Iconos Leaflet originales (cuando Heatmap está APAGADO)
 const ICON_OFICINA = L.icon({
   iconUrl: ICON_OFICINA_URL,
   iconSize: [40, 40],
@@ -1197,14 +1211,12 @@ const ICON_AGENTE = L.icon({
   popupAnchor: [0, -20]
 });
 
+// Mapa base
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom:19 }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
 
 const markers = L.markerClusterGroup({chunkedLoading:true});
-const heat    = L.heatLayer([], {radius:28, blur:22});
 markers.addTo(map);
-heat.addTo(map);
 
 // Combos
 const selDep  = document.getElementById("selDepartamento");
@@ -1247,24 +1259,63 @@ const panelATMTitle = document.getElementById("panelATMTitle");
 const atmDetalle    = document.getElementById("atmDetalle");
 const btnVolver     = document.getElementById("btnVolver");
 
+// -------- LEYENDAS (normal vs heatmap por iconos) -------------
+function setLegendNormal(){
+  if(TIPO_MAPA === "oficinas"){
+    legendBox.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <img src="${ICON_OFICINA_URL}" width="22" height="22"> Oficina
+      </div>
+    `;
+  } else if(TIPO_MAPA === "islas"){
+    legendBox.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <img src="${ICON_OFICINA_URL}" width="22" height="22"> ATM en Oficina
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <img src="${ICON_ISLA_URL}" width="22" height="22"> ATM en Isla
+      </div>
+    `;
+  } else if(TIPO_MAPA === "agentes"){
+    legendBox.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <img src="${ICON_AGENTE_URL}" width="22" height="22"> Agente
+      </div>
+    `;
+  }
+}
+
+function setLegendHeat(){
+  legendBox.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#2ecc71;border:1px solid #ccc;"></span>
+      Baja densidad
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#f1c40f;border:1px solid #ccc;"></span>
+      Densidad media
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e74c3c;border:1px solid #ccc;"></span>
+      Alta densidad
+    </div>
+  `;
+}
+
+function updateLegend(){
+  if(chkHeat.checked){
+    setLegendHeat();
+  } else {
+    setLegendNormal();
+  }
+}
+
 // Config inicial según capa
 if(TIPO_MAPA === "oficinas"){
   panelResumenTitulo.textContent = "Resumen — Oficinas";
   bloqueIslasOfi.classList.add("hidden");
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.remove("hidden");
-  legendBox.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <img src="${ICON_OFICINA_URL}" width="22" height="22"> Oficina
-    </div>
-    <hr style="border:none;border-top:1px solid #dde3ee;margin:6px 0;">
-    <div style="font-weight:600;margin-bottom:2px;">Heatmap de transacciones</div>
-    <div style="font-size:11px;">
-      Colores de menor a mayor intensidad:<br>
-      azul &rarr; verde &rarr; amarillo &rarr; rojo.<br>
-      El calor se basa en el valor de TRX de cada oficina.
-    </div>
-  `;
   panelATMTitle.textContent = "Panel de la oficina seleccionada";
 } else if(TIPO_MAPA === "islas"){
   panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
@@ -1272,41 +1323,15 @@ if(TIPO_MAPA === "oficinas"){
   bloqueIslasOfi.classList.remove("hidden");
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
-  legendBox.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <img src="${ICON_OFICINA_URL}" width="22" height="22"> ATM en Oficina
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <img src="${ICON_ISLA_URL}" width="22" height="22"> ATM en Isla
-    </div>
-    <hr style="border:none;border-top:1px solid #dde3ee;margin:6px 0;">
-    <div style="font-weight:600;margin-bottom:2px;">Heatmap de transacciones</div>
-    <div style="font-size:11px;">
-      Colores de menor a mayor intensidad:<br>
-      azul &rarr; verde &rarr; amarillo &rarr; rojo.<br>
-      El calor refleja el promedio de transacciones de cada ATM.
-    </div>
-  `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
   bloqueIslasOfi.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
-  legendBox.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <img src="${ICON_AGENTE_URL}" width="22" height="22"> Agente
-    </div>
-    <hr style="border:none;border-top:1px solid #dde3ee;margin:6px 0;">
-    <div style="font-weight:600;margin-bottom:2px;">Heatmap de transacciones</div>
-    <div style="font-size:11px;">
-      Colores de menor a mayor intensidad:<br>
-      azul &rarr; verde &rarr; amarillo &rarr; rojo.<br>
-      El calor se calcula con el promedio de TRX del agente.
-    </div>
-  `;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
+updateLegend();
 
 // ------------------- combos dependientes --------------------
 function updateProvincias(){
@@ -1360,37 +1385,92 @@ selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
+chkHeat.onchange = ()=> { updateLegend(); fetchPoints(); };
+
+// ------------------- DENSIDAD (metros entre puntos) --------------------
+function distanceMeters(lat1, lon1, lat2, lon2){
+  const R = 6371000; // radio Tierra en m
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*toRad)*Math.cos(lat2*toRad)*Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Calcula densidad (cantidad de puntos dentro de 80m)
+function computeDensities(points){
+  const radius = 80; // metros
+  for(let i=0; i<points.length; i++){
+    let count = 0;
+    const p1 = points[i];
+    for(let j=0; j<points.length; j++){
+      const p2 = points[j];
+      const d = distanceMeters(p1.lat, p1.lon, p2.lat, p2.lon);
+      if(d <= radius){
+        count++;
+      }
+    }
+    p1._density = count; // guardamos en el punto
+  }
+}
+
+function getDensityClass(d){
+  if(d >= 20) return "heat-high";   // MUY alta concentración
+  if(d >= 6)  return "heat-med";    // media
+  return "heat-low";                // baja
+}
+
+// Icono para vista de heat (iconos coloreados)
+function createHeatIcon(level, label){
+  return L.divIcon({
+    className: `heat-icon ${level}`,
+    html: `<span>${label}</span>`,
+    iconSize:[28,28],
+    iconAnchor:[14,14],
+    popupAnchor:[0,-14]
+  });
+}
 
 // ------------------- Iconos ----------------------
 function getIcon(pt){
-  const ubic = (pt.ubicacion || "").toUpperCase();
+  // Si heatmap está apagado => iconos originales por capa / ubicación
+  if(!chkHeat.checked){
+    const ubic = (pt.ubicacion || "").toUpperCase();
 
-  // Capa agentes: siempre icono de agente
-  if (TIPO_MAPA === "agentes") {
-    return ICON_AGENTE;
-  }
+    if (TIPO_MAPA === "agentes") {
+      return ICON_AGENTE;
+    }
 
-  // Capa islas/oficinas: depende de la ubicación
-  if (ubic.includes("OFICINA")) {
-    return ICON_OFICINA;
-  }
-  if (ubic.includes("ISLA")) {
+    if (ubic.includes("OFICINA")) {
+      return ICON_OFICINA;
+    }
+    if (ubic.includes("ISLA")) {
+      return ICON_ISLA;
+    }
+    if (ubic.includes("AGENTE")) {
+      return ICON_AGENTE;
+    }
+
+    if (TIPO_MAPA === "oficinas") {
+      return ICON_OFICINA;
+    }
+    if (TIPO_MAPA === "islas") {
+      return ICON_ISLA;
+    }
     return ICON_ISLA;
   }
-  if (ubic.includes("AGENTE")) {
-    return ICON_AGENTE;
-  }
 
-  // Fallback por capa
-  if (TIPO_MAPA === "oficinas") {
-    return ICON_OFICINA;
-  }
-  if (TIPO_MAPA === "islas") {
-    return ICON_ISLA;
-  }
+  // Heatmap ACTIVADO => iconos coloreados por densidad
+  const d = pt._density || 1;
+  const level = getDensityClass(d);
 
-  // Fallback genérico
-  return ICON_ISLA;
+  let label = "ATM";
+  if(TIPO_MAPA === "agentes") label = "AG";
+  if(TIPO_MAPA === "oficinas") label = "OF";
+
+  return createHeatIcon(level, label);
 }
 
 // ---------------- Panel seleccionado ----------
@@ -1492,22 +1572,19 @@ async function fetchPoints(){
 
   infoBox.textContent = data.total_atms ?? pts.length;
   markers.clearLayers();
-  heat.setLatLngs([]);
 
-  let heatPts = [];
   let bounds  = [];
+
+  // Calcula densidad por punto (para heat íconos)
+  computeDensities(pts);
 
   pts.forEach(pt => {
     const icon = getIcon(pt);
     const m = L.marker([pt.lat, pt.lon], {icon});
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
-
-    heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
   });
-
-  heat.setLatLngs(heatPts);
 
   if(bounds.length === 1){
     map.setView(bounds[0], 16);
@@ -1515,12 +1592,6 @@ async function fetchPoints(){
     map.fitBounds(bounds, {padding:[20,20]});
   }else{
     map.setView(INITIAL_CENTER, INITIAL_ZOOM);
-  }
-
-  if(chkHeat.checked){
-    if(!map.hasLayer(heat)) heat.addTo(map);
-  }else{
-    if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
   const suma = data.suma_total || 0;
