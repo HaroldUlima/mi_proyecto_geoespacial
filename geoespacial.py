@@ -1036,7 +1036,7 @@ input[type="checkbox"]{
   font-size:12px;
 }
 
-/* Iconos personalizados */
+/* Iconos */
 .icon-round div{
   width:14px;
   height:14px;
@@ -1055,6 +1055,7 @@ input[type="checkbox"]{
 
 <div class="topbar">
   <div class="controls">
+
     <label>Departamento:
       <select id="selDepartamento">
         <option value="">-- Todos --</option>
@@ -1110,49 +1111,42 @@ input[type="checkbox"]{
         <b>Suma total de transacciones:</b> <span id="resSuma">0</span>
       </div>
 
-      <!-- Bloque ISLAS -->
       <div id="bloqueIslasOfi">
         <div style="margin-top:6px; font-weight:600;" id="resTituloBloque">ATMs totales</div>
-        <div class="muted" style="margin-top:2px;">Total: <span id="resTotal">0</span></div>
+        <div class="muted">Total: <span id="resTotal">0</span></div>
         <div class="muted">ATMs en oficinas: <span id="resOfi">0</span></div>
         <div class="muted">ATMs en islas: <span id="resIsla">0</span></div>
-
         <div class="muted" style="margin-top:6px;">Dispensador: <span id="resDisp">0</span></div>
         <div class="muted">Monedero: <span id="resMon">0</span></div>
         <div class="muted">Reciclador: <span id="resRec">0</span></div>
       </div>
 
-      <!-- Bloque OFICINAS -->
-      <div id="bloqueOficinas" class="hidden" style="margin-top:8px;">
-        <div class="muted" style="margin-top:2px;">
-          Cantidad total de oficinas: <span id="resOficinasCount">0</span>
-        </div>
-        <div class="muted" style="margin-top:4px;">
-          Suma total de TRX: <span id="resOficinasSuma">0</span>
-        </div>
+      <div id="bloqueOficinas" class="hidden">
+        <div class="muted">Cantidad total de oficinas: <span id="resOficinasCount">0</span></div>
+        <div class="muted" style="margin-top:4px;">Suma total de TRX: <span id="resOficinasSuma">0</span></div>
       </div>
 
-      <!-- Bloque AGENTES -->
-      <div id="bloqueAgentes" class="hidden" style="margin-top:8px;">
+      <div id="bloqueAgentes" class="hidden">
         <div style="font-weight:600;">Agentes totales: <span id="resAgentesTotal">0</span></div>
-        <div class="muted" style="margin-top:4px;">Capa A1: <span id="resCapaA1">0</span></div>
-        <div class="muted">Capa A2: <span id="resCapaA2">0</span></div>
-        <div class="muted">Capa A3: <span id="resCapaA3">0</span></div>
-        <div class="muted">Capa B : <span id="resCapaB">0</span></div>
-        <div class="muted">Capa C : <span id="resCapaC">0</span></div>
+        <div class="muted">A1: <span id="resCapaA1">0</span></div>
+        <div class="muted">A2: <span id="resCapaA2">0</span></div>
+        <div class="muted">A3: <span id="resCapaA3">0</span></div>
+        <div class="muted">B : <span id="resCapaB">0</span></div>
+        <div class="muted">C : <span id="resCapaC">0</span></div>
       </div>
 
       <div style="margin-top:10px; font-weight:600;">Leyenda</div>
-      <div class="muted" id="legendBox">
-      </div>
+      <div class="muted" id="legendBox"></div>
+
     </div>
 
     <!-- PANEL DETALLE -->
     <div id="panelATM" class="side-card side-card-atm hidden">
       <h3 id="panelATMTitle">Panel del ATM seleccionado</h3>
-      <div id="atmDetalle" style="font-size:12px; margin-top:4px;"></div>
+      <div id="atmDetalle" style="font-size:12px;"></div>
       <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
+
   </div>
 </div>
 
@@ -1161,6 +1155,7 @@ input[type="checkbox"]{
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
+
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
 const DIST_BY_PROV = {{ dist_by_prov|tojson }};
 const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
@@ -1168,50 +1163,81 @@ const DIV_BY_PROV  = {{ div_by_prov|tojson }};
 const DIV_BY_DIST  = {{ div_by_dist|tojson }};
 const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-
-
-
-
-
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
 // ======================================================
 //  ICONOS SEPARADOS POR CAPA — CORRECCIÓN DEFINITIVA
 // ======================================================
 
-// ---- CAPA ISLAS (ATMs dentro de oficina e islas) ----
+// ISLAS (ATMs dentro de oficina e islas)
 const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
 const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
 
-// ---- CAPA OFICINAS ----
+// OFICINAS
 const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
 
-// ---- CAPA AGENTES ----
+// AGENTES
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
+// ======================================================
+//     ICONOS LEAFLET
+// ======================================================
 
-// ICONOS LEAFLET...
-// (tu bloque completo aquí)
+const ICON_ATM_OFICINA = L.icon({
+  iconUrl: ICON_ATM_OFICINA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
 
-// LÓGICA DE getIcon()
-// (tu bloque completo aquí)
+const ICON_ATM_ISLA = L.icon({
+  iconUrl: ICON_ATM_ISLA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_OFICINA = L.icon({
+  iconUrl: ICON_OFICINA_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+const ICON_AGENTE = L.icon({
+  iconUrl: ICON_AGENTE_URL,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20]
+});
+
+// ======================================================
+//       LÓGICA DE ICONOS POR CAPA — DEFINITIVA
+// ======================================================
+function getIcon(pt){
+  const ubic = (pt.ubicacion || "").toUpperCase();
+
+  if (TIPO_MAPA === "agentes") return ICON_AGENTE;
+  if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
+
+  if (TIPO_MAPA === "islas"){
+    if (ubic.includes("OFICINA")) return ICON_ATM_OFICINA;
+    if (ubic.includes("ISLA")) return ICON_ATM_ISLA;
+    return ICON_ATM_ISLA;
+  }
+  return ICON_ATM_ISLA;
+}
 
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-
-
-
-
-
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom:19 }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
 
 const markers = L.markerClusterGroup({chunkedLoading:true});
 const heat    = L.heatLayer([], {radius:28, blur:22});
+
 markers.addTo(map);
 heat.addTo(map);
 
-// Combos
+// ------------------- COMBOS DEPENDIENTES --------------------
 const selDep  = document.getElementById("selDepartamento");
 const selProv = document.getElementById("selProvincia");
 const selDist = document.getElementById("selDistrito");
@@ -1219,72 +1245,6 @@ const selDiv  = document.getElementById("selDivision");
 const chkHeat = document.getElementById("chkHeat");
 const infoBox = document.getElementById("infoCount");
 
-// Panel resumen
-const panelResumen       = document.getElementById("panelResumen");
-const panelResumenTitulo = document.getElementById("panelResumenTitulo");
-const resSuma            = document.getElementById("resSuma");
-const resTituloBloque    = document.getElementById("resTituloBloque");
-const resTotal           = document.getElementById("resTotal");
-const resOfi             = document.getElementById("resOfi");
-const resIsla            = document.getElementById("resIsla");
-const resDisp            = document.getElementById("resDisp");
-const resMon             = document.getElementById("resMon");
-const resRec             = document.getElementById("resRec");
-
-const bloqueIslasOfi     = document.getElementById("bloqueIslasOfi");
-const bloqueOficinas     = document.getElementById("bloqueOficinas");
-const bloqueAgentes      = document.getElementById("bloqueAgentes");
-
-const resOficinasCount   = document.getElementById("resOficinasCount");
-const resOficinasSuma    = document.getElementById("resOficinasSuma");
-
-const resAgentesTotal    = document.getElementById("resAgentesTotal");
-const resCapaA1          = document.getElementById("resCapaA1");
-const resCapaA2          = document.getElementById("resCapaA2");
-const resCapaA3          = document.getElementById("resCapaA3");
-const resCapaB           = document.getElementById("resCapaB");
-const resCapaC           = document.getElementById("resCapaC");
-const legendBox          = document.getElementById("legendBox");
-
-// Panel detalle
-const panelATM      = document.getElementById("panelATM");
-const panelATMTitle = document.getElementById("panelATMTitle");
-const atmDetalle    = document.getElementById("atmDetalle");
-const btnVolver     = document.getElementById("btnVolver");
-
-// Config inicial según capa
-if(TIPO_MAPA === "oficinas"){
-  panelResumenTitulo.textContent = "Resumen — Oficinas";
-  bloqueIslasOfi.classList.add("hidden");
-  bloqueAgentes.classList.add("hidden");
-  bloqueOficinas.classList.remove("hidden");
-  legendBox.innerHTML = `
-    <div>🏦 Oficina</div>
-  `;
-  panelATMTitle.textContent = "Panel de la oficina seleccionada";
-} else if(TIPO_MAPA === "islas"){
-  panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
-  resTituloBloque.textContent    = "ATMs totales (unificado)";
-  bloqueIslasOfi.classList.remove("hidden");
-  bloqueAgentes.classList.add("hidden");
-  bloqueOficinas.classList.add("hidden");
-  legendBox.innerHTML = `
-    <div>🏦 Oficina (icono oficina)</div>
-    <div>🌐 Isla (icono isla)</div>
-  `;
-  panelATMTitle.textContent = "Panel del ATM seleccionado";
-} else if(TIPO_MAPA === "agentes"){
-  panelResumenTitulo.textContent = "Resumen — Agentes";
-  bloqueIslasOfi.classList.add("hidden");
-  bloqueOficinas.classList.add("hidden");
-  bloqueAgentes.classList.remove("hidden");
-  legendBox.innerHTML = `
-    <div>🧍 Agente (icono agente)</div>
-  `;
-  panelATMTitle.textContent = "Panel del agente seleccionado";
-}
-
-// ------------------- combos dependientes --------------------
 function updateProvincias(){
   let d = selDep.value;
   selProv.innerHTML = '<option value="">-- Todas --</option>';
@@ -1328,48 +1288,81 @@ function updateDivisiones(){
     return;
   }
 
-  {{ divisiones|tojson }}.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+  {{ divisiones|tojson }}.forEach(v =>
+    selDiv.innerHTML += `<option value="${v}">${v}</option>`
+  );
 }
 
-// eventos combos
 selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); };
 selProv.onchange = ()=>{ updateDistritos(); fetchPoints(); };
 selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); };
 selDiv.onchange  = ()=> fetchPoints();
 
-// ------------------- Iconos ----------------------
-function getIcon(pt){
-  const ubic = (pt.ubicacion || "").toUpperCase();
 
-  // Capa agentes: siempre icono de agente
-  if (TIPO_MAPA === "agentes") {
-    return ICON_AGENTE;
-  }
+// ======================================================
+// PANEL DETALLE
+// ======================================================
+const panelResumen       = document.getElementById("panelResumen");
+const panelATM           = document.getElementById("panelATM");
+const panelATMTitle      = document.getElementById("panelATMTitle");
+const atmDetalle         = document.getElementById("atmDetalle");
+const btnVolver          = document.getElementById("btnVolver");
 
-  // Capa islas/oficinas: depende de la ubicación
-  if (ubic.includes("OFICINA")) {
-    return ICON_OFICINA;
-  }
-  if (ubic.includes("ISLA")) {
-    return ICON_ISLA;
-  }
-  if (ubic.includes("AGENTE")) {
-    return ICON_AGENTE;
-  }
+// Config inicial según capa
+const bloqueIslasOfi  = document.getElementById("bloqueIslasOfi");
+const bloqueOficinas  = document.getElementById("bloqueOficinas");
+const bloqueAgentes   = document.getElementById("bloqueAgentes");
+const legendBox       = document.getElementById("legendBox");
 
-  // Fallback por capa
-  if (TIPO_MAPA === "oficinas") {
-    return ICON_OFICINA;
-  }
-  if (TIPO_MAPA === "islas") {
-    return ICON_ISLA;
-  }
+const resSuma         = document.getElementById("resSuma");
+const resTituloBloque = document.getElementById("resTituloBloque");
+const resTotal        = document.getElementById("resTotal");
+const resOfi          = document.getElementById("resOfi");
+const resIsla         = document.getElementById("resIsla");
+const resDisp         = document.getElementById("resDisp");
+const resMon          = document.getElementById("resMon");
+const resRec          = document.getElementById("resRec");
 
-  // Fallback genérico
-  return ICON_ISLA;
+const resOficinasCount = document.getElementById("resOficinasCount");
+const resOficinasSuma  = document.getElementById("resOficinasSuma");
+
+const resAgentesTotal = document.getElementById("resAgentesTotal");
+const resCapaA1       = document.getElementById("resCapaA1");
+const resCapaA2       = document.getElementById("resCapaA2");
+const resCapaA3       = document.getElementById("resCapaA3");
+const resCapaB        = document.getElementById("resCapaB");
+const resCapaC        = document.getElementById("resCapaC");
+
+// Panel por capa
+if(TIPO_MAPA === "oficinas"){
+  bloqueIslasOfi.classList.add("hidden");
+  bloqueAgentes.classList.add("hidden");
+  bloqueOficinas.classList.remove("hidden");
+  legendBox.innerHTML = `<div>🏦 Oficina</div>`;
+  panelATMTitle.textContent = "Panel de la oficina seleccionada";
+
+}else if(TIPO_MAPA === "islas"){
+  bloqueIslasOfi.classList.remove("hidden");
+  bloqueAgentes.classList.add("hidden");
+  bloqueOficinas.classList.add("hidden");
+  legendBox.innerHTML = `
+    <div>🏦 Oficina (icono oficina)</div>
+    <div>🌐 Isla (icono isla)</div>
+  `;
+  panelATMTitle.textContent = "Panel del ATM seleccionado";
+
+}else if(TIPO_MAPA === "agentes"){
+  bloqueIslasOfi.classList.add("hidden");
+  bloqueOficinas.classList.add("hidden");
+  bloqueAgentes.classList.remove("hidden");
+  legendBox.innerHTML = `<div>🧍 Agente (icono agente)</div>`;
+  panelATMTitle.textContent = "Panel del agente seleccionado";
 }
 
-// ---------------- Panel seleccionado ----------
+
+// ======================================================
+// FUNCIÓN PANEL SELECCIONADO (DETALLE)
+// ======================================================
 function showATMPanel(pt){
   const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
   let texto = "";
@@ -1387,7 +1380,7 @@ _____________________
 • Tipo: ${pt.tipo}
 • Ubicación: ${pt.ubicacion}
 
-• Dpto/Prov/Dist:
+• Ubicación Geográfica:
   ${lineaUbic}
 
 • Trxs Octubre: ${pt.trxs_oct ?? 0}
@@ -1397,6 +1390,7 @@ _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
+
   } else if(TIPO_MAPA === "oficinas"){
     texto = `
 _____________________
@@ -1407,13 +1401,14 @@ _____________________
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
 
-• Dpto/Prov/Dist:
+• Ubicación Geográfica:
   ${lineaUbic}
 
 _____________________
 Promedio TRX: ${pt.promedio}
 _____________________
 `;
+
   } else {
     texto = `
 _____________________
@@ -1426,7 +1421,7 @@ _____________________
 • Tipo: ${pt.tipo}
 • Ubicación: ${pt.ubicacion}
 
-• Dpto/Prov/Dist:
+• Ubicación Geográfica:
   ${lineaUbic}
 
 _____________________
@@ -1447,7 +1442,10 @@ btnVolver.addEventListener("click", () => {
   panelResumen.classList.remove("hidden");
 });
 
-// ------------------- FETCH + RENDER ----------------
+
+// ======================================================
+// FETCH + RENDER DE LOS PUNTOS
+// ======================================================
 async function fetchPoints(){
   const d  = selDep.value;
   const p  = selProv.value;
@@ -1455,11 +1453,9 @@ async function fetchPoints(){
   const dv = selDiv.value;
 
   const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
-  infoBox.textContent = "...";
 
+  infoBox.textContent = "...";
   panelATM.classList.add("hidden");
-  panelATM.classList.remove("glow");
-  panelResumen.classList.remove("hidden");
 
   const res = await fetch(`/api/points?${qs}`);
   const data = await res.json();
@@ -1467,6 +1463,7 @@ async function fetchPoints(){
   const pts = data.puntos || [];
 
   infoBox.textContent = data.total_atms ?? pts.length;
+
   markers.clearLayers();
   heat.setLatLngs([]);
 
@@ -1495,36 +1492,42 @@ async function fetchPoints(){
 
   if(chkHeat.checked){
     if(!map.hasLayer(heat)) heat.addTo(map);
-  }else{
+  } else {
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  const suma = data.suma_total || 0;
-  resSuma.textContent = Math.round(suma).toString();
+  // ============================
+  // RESUMENES POR CAPA
+  // ============================
+
+  resSuma.textContent = Math.round(data.suma_total || 0);
 
   if(TIPO_MAPA === "agentes"){
-    resAgentesTotal.textContent = (data.total_agentes || data.total_atms || 0).toString();
-    resCapaA1.textContent = (data.total_capa_A1 || 0).toString();
-    resCapaA2.textContent = (data.total_capa_A2 || 0).toString();
-    resCapaA3.textContent = (data.total_capa_A3 || 0).toString();
-    resCapaB.textContent  = (data.total_capa_B  || 0).toString();
-    resCapaC.textContent  = (data.total_capa_C  || 0).toString();
+    resAgentesTotal.textContent = data.total_agentes || 0;
+    resCapaA1.textContent = data.total_capa_A1 || 0;
+    resCapaA2.textContent = data.total_capa_A2 || 0;
+    resCapaA3.textContent = data.total_capa_A3 || 0;
+    resCapaB.textContent  = data.total_capa_B  || 0;
+    resCapaC.textContent  = data.total_capa_C  || 0;
+
   } else if(TIPO_MAPA === "oficinas"){
-    resOficinasCount.textContent = (data.total_oficinas || data.total_atms || 0).toString();
-    resOficinasSuma.textContent  = Math.round(data.suma_total || 0).toString();
+    resOficinasCount.textContent = data.total_oficinas || 0;
+    resOficinasSuma.textContent  = Math.round(data.suma_total || 0);
+
   } else {
-    resTotal.textContent = (data.total_atms || 0).toString();
-    resOfi.textContent   = (data.total_oficinas || 0).toString();
-    resIsla.textContent  = (data.total_islas || 0).toString();
-    resDisp.textContent  = (data.total_disp || 0).toString();
-    resMon.textContent   = (data.total_mon  || 0).toString();
-    resRec.textContent   = (data.total_rec  || 0).toString();
+    resTotal.textContent = data.total_atms || 0;
+    resOfi.textContent   = data.total_oficinas || 0;
+    resIsla.textContent  = data.total_islas || 0;
+    resDisp.textContent  = data.total_disp || 0;
+    resMon.textContent   = data.total_mon  || 0;
+    resRec.textContent   = data.total_rec  || 0;
   }
 }
 
-// Inicial
+// Inicializar combos y render
 updateProvincias();
 fetchPoints();
+
 </script>
 
 </body>
