@@ -1157,7 +1157,7 @@ input[type="checkbox"]{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
@@ -1170,9 +1170,11 @@ const TIPO_MAPA    = "{{ tipo_mapa }}";
 const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
 const INITIAL_ZOOM   = {{ initial_zoom }};
 
-// URLs de iconos (mismas imágenes del selector de capas)
-const ICON_OFICINA_URL = "{{ url_for('static', filename='oficina.png') }}";
-const ICON_ISLA_URL    = "{{ url_for('static', filename='isla.png') }}";
+// ----------------------------
+// ICONOS MODIFICADOS PARA ISLAS
+// ----------------------------
+const ICON_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
+const ICON_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
 const ICON_AGENTE_URL  = "{{ url_for('static', filename='agente.png') }}";
 
 // Iconos Leaflet reutilizables
@@ -1257,6 +1259,7 @@ if(TIPO_MAPA === "oficinas"){
     <div>🏦 Oficina</div>
   `;
   panelATMTitle.textContent = "Panel de la oficina seleccionada";
+
 } else if(TIPO_MAPA === "islas"){
   panelResumenTitulo.textContent = "Resumen — Islas (Oficinas + Islas)";
   resTituloBloque.textContent    = "ATMs totales (unificado)";
@@ -1264,17 +1267,18 @@ if(TIPO_MAPA === "oficinas"){
   bloqueAgentes.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   legendBox.innerHTML = `
-    <div>🏦 Oficina (icono oficina)</div>
-    <div>🌐 Isla (icono isla)</div>
+    <div>🏦 ATM Oficina (icono personalizado)</div>
+    <div>🌐 ATM Isla (icono personalizado)</div>
   `;
   panelATMTitle.textContent = "Panel del ATM seleccionado";
+
 } else if(TIPO_MAPA === "agentes"){
   panelResumenTitulo.textContent = "Resumen — Agentes";
   bloqueIslasOfi.classList.add("hidden");
   bloqueOficinas.classList.add("hidden");
   bloqueAgentes.classList.remove("hidden");
   legendBox.innerHTML = `
-    <div>🧍 Agente (icono agente)</div>
+    <div>🧍 Agente</div>
   `;
   panelATMTitle.textContent = "Panel del agente seleccionado";
 }
@@ -1504,9 +1508,11 @@ async function fetchPoints(){
     resCapaA3.textContent = (data.total_capa_A3 || 0).toString();
     resCapaB.textContent  = (data.total_capa_B  || 0).toString();
     resCapaC.textContent  = (data.total_capa_C  || 0).toString();
+
   } else if(TIPO_MAPA === "oficinas"){
     resOficinasCount.textContent = (data.total_oficinas || data.total_atms || 0).toString();
     resOficinasSuma.textContent  = Math.round(data.suma_total || 0).toString();
+
   } else {
     resTotal.textContent = (data.total_atms || 0).toString();
     resOfi.textContent   = (data.total_oficinas || 0).toString();
