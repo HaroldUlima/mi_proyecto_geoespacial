@@ -273,150 +273,91 @@ df_oficinas[COLF_TRX] = pd.to_numeric(df_oficinas[COLF_TRX], errors="coerce").fi
 # 3. JERARQUÍA TOTAL UNIFICADA (CLIENTES + TODOS LOS CANALES)
 # ============================================================
 
-# ---- Helper para limpiar texto ----
 def clean_str(x):
     return str(x).upper().strip() if pd.notnull(x) else ""
 
-# ---- 1. Unir TODOS los dataframes que tienen geografía ----
 geo_frames = []
-
-# ISLAS (df)
 geo_frames.append(
     df[[COL_DEPT, COL_PROV, COL_DIST]].rename(
         columns={COL_DEPT: "departamento", COL_PROV: "provincia", COL_DIST: "distrito"}
     )
 )
-
-# AGENTES (df_agentes)
 geo_frames.append(
     df_agentes[[COLA_DEPT, COLA_PROV, COLA_DIST]].rename(
-        columns={
-            COLA_DEPT: "departamento",
-            COLA_PROV: "provincia",
-            COLA_DIST: "distrito",
-        }
+        columns={COLA_DEPT: "departamento", COLA_PROV: "provincia", COLA_DIST: "distrito"}
     )
 )
-
-# OFICINAS (df_oficinas)
 geo_frames.append(
     df_oficinas[[COLF_DEPT, COLF_PROV, COLF_DIST]].rename(
-        columns={
-            COLF_DEPT: "departamento",
-            COLF_PROV: "provincia",
-            COLF_DIST: "distrito",
-        }
+        columns={COLF_DEPT: "departamento", COLF_PROV: "provincia", COLF_DIST: "distrito"}
     )
 )
+geo_frames.append(df_clientes[["departamento", "provincia", "distrito"]])
 
-# CLIENTES (df_clientes)
-geo_frames.append(
-    df_clientes[["departamento", "provincia", "distrito"]]
-)
-
-# ---- 2. Concatenar TODA la geografía ----
 geo_all = pd.concat(geo_frames, ignore_index=True)
-
-# ---- 3. Limpiar ----
 geo_all["departamento"] = geo_all["departamento"].apply(clean_str)
 geo_all["provincia"] = geo_all["provincia"].apply(clean_str)
 geo_all["distrito"] = geo_all["distrito"].apply(clean_str)
-
 geo_all = geo_all.dropna()
 
-# ---- 4. Departamentos únicos ----
 DEPARTAMENTOS = sorted(geo_all["departamento"].unique())
 
-# ---- 5. Provincias por departamento ----
 PROVINCIAS_BY_DEPT = {}
 for dep in DEPARTAMENTOS:
     provs = geo_all.loc[geo_all["departamento"] == dep, "provincia"].unique().tolist()
-    provs_clean = sorted([p for p in provs if p])
-    PROVINCIAS_BY_DEPT[dep] = provs_clean
+    PROVINCIAS_BY_DEPT[dep] = sorted([p for p in provs if p])
 
-# ---- 6. Distritos por provincia ----
 DIST_BY_PROV = {}
 provincias_unicas = sorted(geo_all["provincia"].unique())
-
 for prov in provincias_unicas:
     dists = geo_all.loc[geo_all["provincia"] == prov, "distrito"].unique().tolist()
-    dists_clean = sorted([d for d in dists if d])
-    DIST_BY_PROV[prov] = dists_clean
+    DIST_BY_PROV[prov] = sorted([d for d in dists if d])
 
 # ============================================================
 # UNIFICACIÓN DE DIVISIONES (Islas + Oficinas + Agentes)
 # ============================================================
 
 div_frames = []
-
-# ISLAS
 div_frames.append(
     df[[COL_DEPT, COL_PROV, COL_DIST, COL_DIV]].rename(
-        columns={
-            COL_DEPT: "departamento",
-            COL_PROV: "provincia",
-            COL_DIST: "distrito",
-            COL_DIV:  "division"
-        }
+        columns={COL_DEPT: "departamento", COL_PROV: "provincia", COL_DIST: "distrito", COL_DIV: "division"}
     )
 )
-
-# AGENTES
 div_frames.append(
     df_agentes[[COLA_DEPT, COLA_PROV, COLA_DIST, COLA_DIV]].rename(
-        columns={
-            COLA_DEPT: "departamento",
-            COLA_PROV: "provincia",
-            COLA_DIST: "distrito",
-            COLA_DIV:  "division"
-        }
+        columns={COLA_DEPT: "departamento", COLA_PROV: "provincia", COLA_DIST: "distrito", COLA_DIV: "division"}
     )
 )
-
-# OFICINAS
 div_frames.append(
     df_oficinas[[COLF_DEPT, COLF_PROV, COLF_DIST, COLF_DIV]].rename(
-        columns={
-            COLF_DEPT: "departamento",
-            COLF_PROV: "provincia",
-            COLF_DIST: "distrito",
-            COLF_DIV:  "division"
-        }
+        columns={COLF_DEPT: "departamento", COLF_PROV: "provincia", COLF_DIST: "distrito", COLF_DIV: "division"}
     )
 )
 
-# CONCATENAR
 div_all = pd.concat(div_frames, ignore_index=True)
-
-# LIMPIAR
 div_all["departamento"] = div_all["departamento"].apply(clean_str)
-div_all["provincia"]    = div_all["provincia"].apply(clean_str)
-div_all["distrito"]     = div_all["distrito"].apply(clean_str)
-div_all["division"]     = div_all["division"].apply(clean_str)
+div_all["provincia"] = div_all["provincia"].apply(clean_str)
+div_all["distrito"] = div_all["distrito"].apply(clean_str)
+div_all["division"] = div_all["division"].apply(clean_str)
 
-# LISTA TOTAL DE DIVISIONES
 DIVISIONES = sorted(div_all["division"].dropna().unique())
 
-# POR DEPARTAMENTO
 DIVISIONES_BY_DEPT = {}
 for dep in DEPARTAMENTOS:
     divs = div_all.loc[div_all["departamento"] == dep, "division"].dropna().unique().tolist()
     DIVISIONES_BY_DEPT[dep] = sorted(set(divs))
 
-# POR PROVINCIA
 DIVISIONES_BY_PROV = {}
-for prov in PROVINCIAS_BY_DEPT.values():
-    for p in prov:
+for prov_list in PROVINCIAS_BY_DEPT.values():
+    for p in prov_list:
         divs = div_all.loc[div_all["provincia"] == p, "division"].dropna().unique().tolist()
         DIVISIONES_BY_PROV[p] = sorted(set(divs))
 
-# POR DISTRITO
 DIVISIONES_BY_DIST = {}
 for prov, dists in DIST_BY_PROV.items():
     for d in dists:
         divs = div_all.loc[div_all["distrito"] == d, "division"].dropna().unique().tolist()
         DIVISIONES_BY_DIST[d] = sorted(set(divs))
-
 
 
 # ============================================================
@@ -425,8 +366,8 @@ for prov, dists in DIST_BY_PROV.items():
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "fallback_local")
 
-APP_USER = os.getenv("APP_USERNAME","adminbbva") #CAMBIOS
-APP_PASS = os.getenv("APP_PASSWORD","clave123") #CAMBIOS
+APP_USER = os.getenv("APP_USERNAME", "adminbbva")
+APP_PASS = os.getenv("APP_PASSWORD", "clave123")
 
 if not APP_USER or not APP_PASS:
     print("⚠️ APP_USERNAME / APP_PASSWORD no configurados en Render.")
@@ -634,35 +575,26 @@ def selector():
 def api_recomendaciones():
     return jsonify(recomendaciones.to_dict(orient="records"))
 
+
 # ============================================================
 # 6B. RUTA MAPA INTEGRAL (OFICINAS + ATMs + AGENTES)
 # ============================================================
 @app.route("/mapa/integral")
 @login_required
 def mapa_integral():
-
-    # Centro inicial igual a otras vistas
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
 
     return render_template_string(
         TEMPLATE_MAPA,
-        
         tipo_mapa="integral",
-
-        # 🔵 JERARQUÍA TOTAL UNIFICADA
         departamentos=DEPARTAMENTOS,
         provincias_by_dept=PROVINCIAS_BY_DEPT,
         dist_by_prov=DIST_BY_PROV,
-
-        # 🔵 DIVISIONES UNIFICADAS
         div_by_dept=DIVISIONES_BY_DEPT,
         div_by_prov=DIVISIONES_BY_PROV,
         div_by_dist=DIVISIONES_BY_DIST,
         divisiones=DIVISIONES,
-
-        segment_list=SEGMENTOS_CLIENTES,              # 👈 NUEVO
-
-        # Mapa
+        segment_list=SEGMENTOS_CLIENTES,
         initial_center=initial_center,
         initial_zoom=6,
     )
@@ -674,50 +606,25 @@ def mapa_integral():
 @app.route("/mapa/<tipo>")
 @login_required
 def mapa_tipo(tipo):
-
-    # Tipos válidos
     if tipo not in ["oficinas", "islas", "agentes"]:
         return "No existe esa capa", 404
 
-    # Centro inicial del mapa basado en ATMs (o puedes usar oficinas/agentes)
     initial_center = df[[COL_LAT, COL_LON]].mean().tolist()
-
-    # ================================
-    # USAR SIEMPRE LA JERARQUÍA UNIFICADA
-    # ================================
-    departamentos      = DEPARTAMENTOS
-    provincias_by_dept = PROVINCIAS_BY_DEPT
-    dist_by_prov       = DIST_BY_PROV
-
-    # ================================
-    # DIVISIONES TAMBIÉN UNIFICADAS
-    # ================================
-    div_by_dept = DIVISIONES_BY_DEPT
-    div_by_prov = DIVISIONES_BY_PROV
-    div_by_dist = DIVISIONES_BY_DIST
-    divisiones  = DIVISIONES
 
     return render_template_string(
         TEMPLATE_MAPA,
         tipo_mapa=tipo,
-
-        # JERARQUÍA TOTAL
-        departamentos=departamentos,
-        provincias_by_dept=provincias_by_dept,
-        dist_by_prov=dist_by_prov,
-
-        # DIVISIONES
-        div_by_dept=div_by_dept,
-        div_by_prov=div_by_prov,
-        div_by_dist=div_by_dist,
-        divisiones=divisiones,
-
-        segment_list=SEGMENTOS_CLIENTES, 
-
+        departamentos=DEPARTAMENTOS,
+        provincias_by_dept=PROVINCIAS_BY_DEPT,
+        dist_by_prov=DIST_BY_PROV,
+        div_by_dept=DIVISIONES_BY_DEPT,
+        div_by_prov=DIVISIONES_BY_PROV,
+        div_by_dist=DIVISIONES_BY_DIST,
+        divisiones=DIVISIONES,
+        segment_list=SEGMENTOS_CLIENTES,
         initial_center=initial_center,
         initial_zoom=6,
     )
-
 
 
 # ============================================================
@@ -980,23 +887,23 @@ def api_points():
         }
     )
 
+
 # ============================================================
-# NUEVO — ENDPOINT DE CLIENTES CON MUESTREO DINÁMICO @login_required
+# NUEVO — ENDPOINT DE CLIENTES CON MUESTREO DINÁMICO
 # ============================================================
 @app.route("/api/clientes")
 @login_required
 def api_clientes():
-    # Zoom (para definir cuánto muestreamos)
     zoom_str = request.args.get("zoom", "10")
     try:
         zoom = int(float(zoom_str))
     except:
         zoom = 10
 
-    # --- Filtros geográficos desde los combos ---
     dpto = request.args.get("departamento", "").upper().strip()
     prov = request.args.get("provincia", "").upper().strip()
     dist = request.args.get("distrito", "").upper().strip()
+    seg  = request.args.get("segmento", "").upper().strip()  # NUEVO
 
     dff = df_clientes.copy()
 
@@ -1006,12 +913,12 @@ def api_clientes():
         dff = dff[dff["provincia"].str.upper() == prov]
     if dist:
         dff = dff[dff["distrito"].str.upper() == dist]
+    if seg:
+        dff = dff[dff["segmento"].astype(str).str.upper() == seg]
 
-    # Si no quedan clientes, devolvemos lista vacía
     if dff.empty:
         return jsonify([])
 
-    # --- Muestreo dinámico según zoom (igual que en el backup) ---
     if zoom <= 5:
         sample_size = 1000
     elif zoom <= 9:
@@ -1022,31 +929,23 @@ def api_clientes():
         sample_size = 12000
 
     sample_size = min(sample_size, len(dff))
-
     df_sample = dff.sample(sample_size, replace=False, random_state=None)
 
-    puntos = [
-        {"lat": float(r.latitud), "lon": float(r.longitud)}
-        for _, r in df_sample.iterrows()
-    ]
-
+    puntos = [{"lat": float(r.latitud), "lon": float(r.longitud)} for _, r in df_sample.iterrows()]
     return jsonify(puntos)
+
 
 # ============================================================
 # API — RESUMEN DE CLIENTES VISIBLE SEGÚN FILTROS
 # ============================================================
-
 @app.route("/api/resumen_clientes")
 @login_required
 def api_resumen_clientes():
-
-    # ---- Leer filtros ----
     dpto = request.args.get("departamento", "").upper().strip()
     prov = request.args.get("provincia", "").upper().strip()
     dist = request.args.get("distrito", "").upper().strip()
     segmento = request.args.get("segmento", "").upper().strip()
 
-    # ---- Filtrar base ----
     dff = df_clientes.copy()
 
     if dpto:
@@ -1056,9 +955,8 @@ def api_resumen_clientes():
     if dist:
         dff = dff[dff["distrito"].str.upper() == dist]
     if segmento:
-      dff = dff[dff["segmento"].str.upper() == segmento]
+        dff = dff[dff["segmento"].astype(str).str.upper() == segmento]
 
-    # Si no hay clientes en la zona → retorno vacío
     if dff.empty:
         return jsonify({
             "total": 0,
@@ -1069,32 +967,15 @@ def api_resumen_clientes():
             "top_segmento": "—"
         })
 
-    # ---- Estadísticas ----
     total = len(dff)
 
-    digital_pct = round(
-        100 * dff["flag_digital"].mean(), 1
-    ) if "flag_digital" in dff.columns else 0
+    digital_pct = round(100 * dff["flag_digital"].mean(), 1) if "flag_digital" in dff.columns else 0
+    edad_prom = round(dff["edad"].mean(), 1) if "edad" in dff.columns else 0
+    ingreso_prom = round(dff["ingresos"].mean(), 2) if "ingresos" in dff.columns else 0
+    deuda_prom = round(dff["deuda"].mean(), 2) if "deuda" in dff.columns else 0
 
-    edad_prom = round(
-        dff["edad"].mean(), 1
-    ) if "edad" in dff.columns else 0
-
-    ingreso_prom = round(
-        dff["ingresos"].mean(), 2
-    ) if "ingresos" in dff.columns else 0
-
-    deuda_prom = round(
-        dff["deuda"].mean(), 2
-    ) if "deuda" in dff.columns else 0
-
-    # Top segmento
     if "segmento" in dff.columns:
-        top_segmento = (
-            dff["segmento"]
-            .value_counts()
-            .idxmax()
-        )
+        top_segmento = dff["segmento"].value_counts().idxmax()
     else:
         top_segmento = "—"
 
@@ -1106,7 +987,6 @@ def api_resumen_clientes():
         "deuda_prom": deuda_prom,
         "top_segmento": top_segmento
     })
-
 
 
 # ============================================================
@@ -1257,9 +1137,9 @@ def api_points_integral():
 
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
-#   ✅ CAMBIO CLAVE:
-#   - OFICINAS y AGENTES (NO integral) usan la MISMA VENTANA
-#     que el integral (mismos IDs y misma lógica).
+#   ✅ NUEVO:
+#   - BORDE NEÓN AZUL POR DIVISIÓN (Convex Hull / Rectángulo)
+#   - FUNCIONA EN: ISLAS, OFICINAS, AGENTES, INTEGRAL
 # ============================================================
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -1288,6 +1168,9 @@ TEMPLATE_MAPA = """
   --bbva-dark:#072146;
   --muted:#6b7a8a;
   --card:#ffffff;
+
+  /* ✅ Neón azul para borde de División */
+  --neon-blue:#00B7FF;
 }
 html,body{
   margin:0;
@@ -1464,6 +1347,12 @@ input[type="checkbox"]{
   border-radius:12px;
   box-shadow:0 6px 20px rgba(0,0,0,0.25);
 }
+
+/* ✅ Estilo neón para el BORDE DE DIVISIÓN (Leaflet path) */
+.division-neon{
+  filter: drop-shadow(0 0 6px rgba(0,183,255,0.85))
+          drop-shadow(0 0 14px rgba(0,183,255,0.55));
+}
 </style>
 </head>
 
@@ -1524,7 +1413,6 @@ input[type="checkbox"]{
       </select>
     </label>
 
-
     {% if tipo_mapa == 'islas' %}
       <label>Tipo ATM:
         <select id="selTipoATM">
@@ -1559,18 +1447,13 @@ input[type="checkbox"]{
       <input type="checkbox" id="chkHeat" checked> Heatmap
     </label>
 
-    <!-- ========================================================= -->
-    <!-- NUEVO — Checkbox para el Heatmap de Clientes -->
-    <!-- ========================================================= -->
-    <label style="margin-left:16px;">  <!-- NUEVO -->
-      <input type="checkbox" id="chkHeatClientes"> Heatmap Clientes <!-- NUEVO -->
-    </label> <!-- NUEVO -->
+    <label style="margin-left:16px;">
+      <input type="checkbox" id="chkHeatClientes"> Heatmap Clientes
+    </label>
 
     <label style="margin-left:16px;">
       <input type="checkbox" id="chkReco"> Recomendaciones
     </label>
-
-
 
     <div style="flex:1"></div>
 
@@ -1592,12 +1475,6 @@ input[type="checkbox"]{
         <img src="{{ url_for('static', filename='banco.png') }}" alt="BBVA">
       </div>
     {% endif %}
-
-    <!-- ============================================================
-         ✅ SIEMPRE EXISTEN LOS 3 PANELES (MISMOS IDs)
-         - Integral: se controlan por checkbox
-         - No integral: se muestra SOLO el panel de su capa
-       ============================================================ -->
 
     <div id="panelATMResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'islas' %}hidden{% endif %}">
       <div class="side-title">🌐 Panel ATMs</div>
@@ -1691,7 +1568,6 @@ input[type="checkbox"]{
       </div>
     </div>
 
-    <!-- PANEL RESUMEN CLIENTES -->
     <div id="panelClientes" class="side-card hidden">
       <div class="side-title">Clientes visibles</div>
       <div class="muted">Total clientes: <span id="cliTotal">0</span></div>
@@ -1702,34 +1578,26 @@ input[type="checkbox"]{
       <div class="muted">Top segmento: <span id="cliTopSeg">—</span></div>
     </div>
 
-
-    <!-- PANEL DETALLE (clic en un punto) -->
     <div id="panelATM" class="side-card side-card-atm hidden">
       <h3 id="panelATMTitle">Panel del punto seleccionado</h3>
       <div id="atmDetalle" style="font-size:12px;"></div>
       <button id="btnVolver" class="btn-small">VOLVER</button>
     </div>
 
-    <!-- PANEL DETALLE RECOMENDACIÓN — NUEVO -->
     <div id="panelReco" class="side-card side-card-atm hidden">
         <h3 id="recoTitle">Recomendación</h3>
-
         <div id="recoDetalle" style="font-size:12px; white-space:pre-line;"></div>
-
         <button id="btnRecoVolver" class="btn-small">VOLVER</button>
     </div>
 
-
   </div>
 </div>
-
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
-
 const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
 const DIST_BY_PROV = {{ dist_by_prov|tojson }};
 const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
@@ -1770,33 +1638,17 @@ function getIcon(pt){
 const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
 
-// Capas base
 const markers      = L.markerClusterGroup({chunkedLoading:true});
 const heat         = L.heatLayer([], {radius:28, blur:22});
+const markersReco  = L.layerGroup();
 
-// ============================================
-// Capa de Recomendaciones (simple) – NUEVO
-// ============================================
-const markersReco = L.layerGroup();
-
-// ================================================================
-// NUEVO — capa de heatmap para CLIENTES
-// Suavizamos radio, blur e intensidad para no saturar el mapa
-// ================================================================
 const heatClientes = L.heatLayer(
   [],
-  { 
-    radius: 7,     // más pequeño que ATMs
-    blur: 6,
-    maxZoom: 18,
-    minOpacity: 0.04
-  }
-); // NUEVO
+  { radius: 7, blur: 6, maxZoom: 18, minOpacity: 0.04 }
+);
 
 markers.addTo(map);
 heat.addTo(map);
-// heatClientes se agrega dinámicamente en fetchClientes() // NUEVO
-
 
 // ======================================================
 // COMBOS
@@ -1806,13 +1658,119 @@ const selProv = document.getElementById("selProvincia");
 const selDist = document.getElementById("selDistrito");
 const selDiv  = document.getElementById("selDivision");
 const chkHeat = document.getElementById("chkHeat");
-const chkHeatClientes = document.getElementById("chkHeatClientes"); // NUEVO
-const panelClientes    = document.getElementById("panelClientes"); // NUEVO
+const chkHeatClientes = document.getElementById("chkHeatClientes");
+const panelClientes    = document.getElementById("panelClientes");
 const infoBox = document.getElementById("infoCount");
 
 const selTipoATM = document.getElementById("selTipoATM");
 const selUbicATM = document.getElementById("selUbicacionATM");
+const selSegmento = document.getElementById("selSegmento");
+const chkReco = document.getElementById("chkReco");
 
+// ======================================================
+// ✅ NUEVO: BORDE NEÓN POR DIVISIÓN (Convex Hull / Rectángulo)
+// - Se dibuja SOLO si selDiv tiene valor
+// - Funciona para TODAS las vistas (islas/oficinas/agentes/integral)
+// ======================================================
+let divisionBorderLayer = null;
+
+function clearDivisionBorder(){
+  if(divisionBorderLayer){
+    try { map.removeLayer(divisionBorderLayer); } catch(e){}
+    divisionBorderLayer = null;
+  }
+}
+
+// Convex Hull (Monotonic Chain) usando x=lng, y=lat
+function convexHullLatLng(latlngs){
+  if(!latlngs || latlngs.length <= 2) return latlngs || [];
+
+  // quitar duplicados simples
+  const uniq = new Map();
+  latlngs.forEach(ll=>{
+    const k = ll.lat.toFixed(6) + "," + ll.lng.toFixed(6);
+    uniq.set(k, ll);
+  });
+  const pts = Array.from(uniq.values()).map(ll => ({x: ll.lng, y: ll.lat}));
+
+  if(pts.length <= 2) return pts.map(p => L.latLng(p.y, p.x));
+
+  pts.sort((a,b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
+
+  const cross = (o,a,b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
+
+  const lower = [];
+  for(const p of pts){
+    while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for(let i=pts.length-1; i>=0; i--){
+    const p = pts[i];
+    while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  upper.pop(); lower.pop();
+  const hull = lower.concat(upper);
+
+  return hull.map(p => L.latLng(p.y, p.x));
+}
+
+function rectFromLatLngs(latlngs){
+  const b = L.latLngBounds(latlngs);
+  const sw = b.getSouthWest();
+  const ne = b.getNorthEast();
+  return [
+    sw,
+    L.latLng(sw.lat, ne.lng),
+    ne,
+    L.latLng(ne.lat, sw.lng),
+  ];
+}
+
+function drawDivisionBorder(latlngs){
+  clearDivisionBorder();
+  if(!latlngs || latlngs.length === 0) return;
+
+  divisionBorderLayer = L.polygon(latlngs, {
+    color: "#00B7FF",
+    weight: 4,
+    opacity: 0.95,
+    fill: false,
+    dashArray: "10 12",
+    lineCap: "round",
+    lineJoin: "round",
+    interactive: false,
+    className: "division-neon"
+  }).addTo(map);
+}
+
+function updateDivisionBorderFromPoints(latlngs){
+  const dv = (selDiv && selDiv.value) ? String(selDiv.value).trim() : "";
+  if(!dv){
+    clearDivisionBorder();
+    return;
+  }
+  if(!latlngs || latlngs.length === 0){
+    clearDivisionBorder();
+    return;
+  }
+
+  let outline = [];
+  if(latlngs.length < 3){
+    outline = rectFromLatLngs(latlngs);
+  }else{
+    outline = convexHullLatLng(latlngs);
+    if(!outline || outline.length < 3){
+      outline = rectFromLatLngs(latlngs);
+    }
+  }
+  drawDivisionBorder(outline);
+}
+
+// ======================================================
+// COMBOS DEP/PROV/DIST/DIV
+// ======================================================
 function updateProvincias(){
   let d = selDep.value;
   selProv.innerHTML = '<option value="">-- Todas --</option>';
@@ -1861,11 +1819,9 @@ const panelATMTitle = document.getElementById("panelATMTitle");
 const atmDetalle    = document.getElementById("atmDetalle");
 const btnVolver     = document.getElementById("btnVolver");
 
-// Panel Recomendación — NUEVO
 const panelReco     = document.getElementById("panelReco");
 const recoDetalle   = document.getElementById("recoDetalle");
 const btnRecoVolver = document.getElementById("btnRecoVolver");
-
 
 const panelATMResumen = document.getElementById("panelATMResumen");
 const panelOfiResumen = document.getElementById("panelOfiResumen");
@@ -1896,13 +1852,12 @@ function showResumenPanels(){
 }
 
 function showRecoPanel(r){
+  if (!r){
+    console.error("❌ showRecoPanel recibió r = undefined");
+    return;
+  }
 
-    if (!r){
-        console.error("❌ showRecoPanel recibió r = undefined");
-        return;
-    }
-
-    let txt = `
+  let txt = `
 ___________ RECOMENDACIÓN ___________
 
 Canal sugerido: ${r.canal.toUpperCase()}
@@ -1927,16 +1882,14 @@ Coordenadas:
 ______________________________________
 `;
 
-    document.getElementById("recoDetalle").textContent = txt;
+  document.getElementById("recoDetalle").textContent = txt;
 
-    hideResumenPanels();
-    panelATM.classList.add("hidden");
+  hideResumenPanels();
+  panelATM.classList.add("hidden");
 
-    panelReco.classList.remove("hidden");
-    panelReco.classList.add("glow");
+  panelReco.classList.remove("hidden");
+  panelReco.classList.add("glow");
 }
-
-
 
 function showATMPanel(pt){
   const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
@@ -2004,7 +1957,6 @@ Promedio: ${pt.promedio}
 _____________________
 `;
     }
-
   } else if(TIPO_MAPA === "agentes"){
     texto = `
 _____________________
@@ -2028,7 +1980,6 @@ _____________________
 Promedio: ${pt.promedio}
 _____________________
 `;
-
   } else if(TIPO_MAPA === "oficinas"){
     texto = `
 _____________________
@@ -2046,8 +1997,7 @@ _____________________
 Promedio TRX: ${pt.promedio}
 _____________________
 `;
-
-  } else { // islas
+  } else {
     texto = `
 _____________________
  ATM ${pt.atm}
@@ -2082,117 +2032,95 @@ btnVolver.addEventListener("click", () => {
 });
 
 btnRecoVolver.onclick = () => {
-    panelReco.classList.add("hidden");
-    panelReco.classList.remove("glow");
-
-    // Restaurar paneles según la vista activa
-    if (TIPO_MAPA === "integral"){
-        syncIntegralPanelsVisibility();
-    } else {
-        syncSinglePanelsVisibility();
-    }
+  panelReco.classList.add("hidden");
+  panelReco.classList.remove("glow");
+  if (TIPO_MAPA === "integral"){
+    syncIntegralPanelsVisibility();
+  } else {
+    syncSinglePanelsVisibility();
+  }
 };
 
-
 // ======================================================================
-// NUEVO — Función para cargar heatmap de CLIENTES
+// CLIENTES
 // ======================================================================
 async function fetchClientes(){
   try {
-     const zoom = map.getZoom();
-
+    const zoom = map.getZoom();
     const d  = selDep.value;
     const p  = selProv.value;
     const di = selDist.value;
-    const seg = selSegmento.value;     // <--- NUEVO
+    const seg = selSegmento.value;
 
     const qs =
-        `zoom=${zoom}`
-        + `&departamento=${encodeURIComponent(d)}`
-        + `&provincia=${encodeURIComponent(p)}`
-        + `&distrito=${encodeURIComponent(di)}`
-        + `&segmento=${encodeURIComponent(seg)}`;  // <--- NUEVO
+      `zoom=${zoom}` +
+      `&departamento=${encodeURIComponent(d)}` +
+      `&provincia=${encodeURIComponent(p)}` +
+      `&distrito=${encodeURIComponent(di)}` +
+      `&segmento=${encodeURIComponent(seg)}`;
 
     const res = await fetch(`/api/clientes?${qs}`);
     const data = await res.json();
 
     heatClientes.setLatLngs(data.map(c => [c.lat, c.lon, 1]));
-
-    if (!map.hasLayer(heatClientes)){
-        map.addLayer(heatClientes);
-    }
+    if (!map.hasLayer(heatClientes)) map.addLayer(heatClientes);
   } catch (err){
     console.error("Error cargando clientes:", err);
   }
 }
 
-// ============================================
-// RESUMEN DE CLIENTES — CORREGIDO
-// ============================================
 async function fetchResumenClientes(){
+  const d  = selDep.value;
+  const p  = selProv.value;
+  const di = selDist.value;
+  const seg = selSegmento.value;
 
-    const d  = selDep.value;
-    const p  = selProv.value;
-    const di = selDist.value;
-    const seg = selSegmento.value;   // <-- OBLIGATORIO NUEVO
+  const qs =
+    `departamento=${encodeURIComponent(d)}` +
+    `&provincia=${encodeURIComponent(p)}` +
+    `&distrito=${encodeURIComponent(di)}` +
+    `&segmento=${encodeURIComponent(seg)}`;
 
-    const qs =
-        `departamento=${encodeURIComponent(d)}`
-        + `&provincia=${encodeURIComponent(p)}`
-        + `&distrito=${encodeURIComponent(di)}`
-        + `&segmento=${encodeURIComponent(seg)}`;   // <-- OBLIGATORIO NUEVO
+  const res = await fetch(`/api/resumen_clientes?${qs}`);
+  const js  = await res.json();
 
-    const res = await fetch(`/api/resumen_clientes?${qs}`);
-    const js  = await res.json();
-
-    document.getElementById("cliTotal").textContent   = js.total;
-    document.getElementById("cliDigital").textContent = js.digital_pct + "%";
-    document.getElementById("cliEdad").textContent    = js.edad_prom;
-    document.getElementById("cliIngreso").textContent = js.ingreso_prom;
-    document.getElementById("cliDeuda").textContent   = js.deuda_prom;
-    document.getElementById("cliTopSeg").textContent  = js.top_segmento;
+  document.getElementById("cliTotal").textContent   = js.total;
+  document.getElementById("cliDigital").textContent = js.digital_pct + "%";
+  document.getElementById("cliEdad").textContent    = js.edad_prom;
+  document.getElementById("cliIngreso").textContent = js.ingreso_prom;
+  document.getElementById("cliDeuda").textContent   = js.deuda_prom;
+  document.getElementById("cliTopSeg").textContent  = js.top_segmento;
 }
-
 
 async function cargarRecomendaciones(){
-    try {
-        const res = await fetch("/api/recomendaciones");
-        const data = await res.json();
+  try {
+    const res = await fetch("/api/recomendaciones");
+    const data = await res.json();
 
-        // limpiar capa
-        markersReco.clearLayers();
+    markersReco.clearLayers();
+    data.forEach(r => {
+      const m = L.marker([r.lat, r.lon], {
+        icon: L.divIcon({
+          className: "icon-reco",
+          html: "⚡",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        })
+      });
+      m.on("click", () => showRecoPanel(r));
+      markersReco.addLayer(m);
+    });
 
-        data.forEach(r => {
-            const m = L.marker([r.lat, r.lon], {
-                icon: L.divIcon({
-                    className: "icon-reco",
-                    html: "⚡",
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                })
-            });
-
-            // 👈 NUEVO — ABRIR PANEL AL CLIC
-            m.on("click", () => showRecoPanel(r));
-
-            markersReco.addLayer(m);
-        });
-
-        // agregar al mapa si el checkbox está activo
-        if (chkReco.checked){
-            markersReco.addTo(map);
-        }
-
-    } catch(err){
-        console.error("Error cargando recomendaciones:", err);
+    if (chkReco.checked){
+      markersReco.addTo(map);
     }
+  } catch(err){
+    console.error("Error cargando recomendaciones:", err);
+  }
 }
 
-
-
-
 // ======================================================
-// CAPAS NORMALES (NO integral) — AHORA ACTUALIZA LOS MISMOS IDs
+// CAPAS NORMALES (NO integral)
 // ======================================================
 async function fetchPoints(){
   if(TIPO_MAPA === "integral") return;
@@ -2221,14 +2149,13 @@ async function fetchPoints(){
   const data = await res.json();
   const pts = data.puntos || [];
 
-  // contador superior
   infoBox.textContent = data.total_atms ?? pts.length;
 
   markers.clearLayers();
   heat.setLatLngs([]);
 
   let heatPts = [];
-  let bounds  = [];
+  let bounds  = []; // arrays [lat,lon]
 
   pts.forEach(pt => {
     const icon = getIcon(pt);
@@ -2236,7 +2163,6 @@ async function fetchPoints(){
     m.on("click", () => showATMPanel(pt));
     markers.addLayer(m);
 
-    // solo tiene sentido heat con "promedio" (igual sirve para todas)
     heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
     bounds.push([pt.lat, pt.lon]);
   });
@@ -2257,7 +2183,9 @@ async function fetchPoints(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // ✅ Actualizar panel correcto (mismos IDs que integral)
+  // ✅ BORDE DIVISIÓN (si hay división seleccionada)
+  updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
+
   if(TIPO_MAPA === "islas"){
     const elAtmTotal = document.getElementById("resAtmTotal");
     const elAtmSuma  = document.getElementById("resAtmSuma");
@@ -2276,14 +2204,9 @@ async function fetchPoints(){
     if(elAtmRec)   elAtmRec.textContent   = data.total_rec  || 0;
   }
 
-  // ================================================================
-  // NUEVO — Exclusividad inicial: si clientes está activo al cargar,
-  // apagamos el heatmap de ATMs
-  // ================================================================
-  if (chkHeatClientes && chkHeatClientes.checked) {     // NUEVO
-      chkHeat.checked = false;                          // NUEVO
-  }                                                      // NUEVO
-
+  if (chkHeatClientes && chkHeatClientes.checked) {
+    chkHeat.checked = false;
+  }
 
   if(TIPO_MAPA === "oficinas"){
     const elOfiTotal = document.getElementById("resOfiTotal");
@@ -2311,25 +2234,14 @@ async function fetchPoints(){
     if(elC)  elC.textContent  = data.total_capa_C  || 0;
   }
 
-  // asegurar visibilidad correcta al volver
   syncSinglePanelsVisibility();
 
-  // =====================================
-  // NUEVO — Recargar recomendaciones
-  // =====================================
   if (chkReco.checked){
-      cargarRecomendaciones();
-
-      if (!map.hasLayer(markersReco)){
-          markersReco.addTo(map);
-      }
+    cargarRecomendaciones();
+    if (!map.hasLayer(markersReco)) markersReco.addTo(map);
   } else {
-      if (map.hasLayer(markersReco)){
-          map.removeLayer(markersReco);
-      }
+    if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
   }
-
-
 }
 
 // ======================================================
@@ -2370,7 +2282,7 @@ async function fetchIntegral(){
   markers.clearLayers();
   heat.setLatLngs([]);
 
-  let bounds = [];
+  let bounds = []; // arrays [lat,lon] SOLO visibles (por checkbox)
   let heatPts = [];
 
   const showATMs = !chkATMs || chkATMs.checked;
@@ -2424,7 +2336,9 @@ async function fetchIntegral(){
     if(map.hasLayer(heat)) map.removeLayer(heat);
   }
 
-  // ====== actualizar 3 paneles ======
+  // ✅ BORDE DIVISIÓN EN INTEGRAL (usa SOLO lo visible por checkbox)
+  updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
+
   const elAtmTotal = document.getElementById("resAtmTotal");
   const elAtmSuma  = document.getElementById("resAtmSuma");
   const elAtmOfi   = document.getElementById("resAtmEnOfi");
@@ -2501,7 +2415,6 @@ async function fetchIntegral(){
     (showAg   ? ag_total : 0);
 
   infoBox.textContent = visibleCount;
-
   syncIntegralPanelsVisibility();
 }
 
@@ -2514,93 +2427,56 @@ if(TIPO_MAPA === "integral"){
   selDist.onchange = ()=>{ updateDivisiones(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes();};
   selDiv.onchange  = ()=> fetchIntegral();
 
-  // ============================================
-  // Filtro de segmento — actualiza HEATMAP + PANEL
-  // ============================================
   selSegmento.onchange = () => {
-      if (chkHeatClientes.checked){
-          fetchClientes();          // Actualiza heatmap de clientes
-          fetchResumenClientes();   // Actualiza panel de resumen
-      }
+    if (chkHeatClientes.checked){
+      fetchClientes();
+      fetchResumenClientes();
+    }
   };
-
 
   if(chkATMs)     chkATMs.onchange     = ()=> fetchIntegral();
   if(chkOficinas) chkOficinas.onchange = ()=> fetchIntegral();
   if(chkAgentes)  chkAgentes.onchange  = ()=> fetchIntegral();
 
-  // ======================================================================
-  // MOD — Exclusividad ATMs vs Clientes + control visual completo
-  // ======================================================================
   chkHeat.onchange = ()=>{
-
-      if (chkHeat.checked){
-
-          // 🔹 Si se enciende el heatmap de ATMs, apagar el heatmap de clientes
-          chkHeatClientes.checked = false;                     // NUEVO
-
-          // Limpiar heatmap de clientes
-          heatClientes.setLatLngs([]);                         // NUEVO
-          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);  // NUEVO
-
-          // Encender ATMs
-          //if (!map.hasLayer(heat)) map.addLayer(heat); //LO DEJAMOS PORSI
-          fetchPoints(); 
-
-      } else {
-
-          // Apagar ATMs
-          heat.setLatLngs([]);
-          if (map.hasLayer(heat)) map.removeLayer(heat);
-
-          // Si clientes está marcado, volver a activar su heatmap
-          if (chkHeatClientes.checked){                        // NUEVO
-              fetchClientes();                                 // NUEVO
-          }
-      }
+    if (chkHeat.checked){
+      chkHeatClientes.checked = false;
+      panelClientes.classList.add("hidden");
+      heatClientes.setLatLngs([]);
+      if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+      fetchIntegral();
+    } else {
+      heat.setLatLngs([]);
+      if (map.hasLayer(heat)) map.removeLayer(heat);
+      if (chkHeatClientes.checked) fetchClientes();
+    }
   };
 
   chkReco.onchange = () => {
     if (chkReco.checked){
-        cargarRecomendaciones();
-        markersReco.addTo(map);
+      cargarRecomendaciones();
+      if(!map.hasLayer(markersReco)) markersReco.addTo(map);
     } else {
-        map.removeLayer(markersReco);
+      if(map.hasLayer(markersReco)) map.removeLayer(markersReco);
     }
   };
 
-
-  // ============================================================
-  // NUEVO — Handler unificado para Heatmap Clientes
-  // ============================================================
   chkHeatClientes.onchange = () => {
+    if (chkHeatClientes.checked){
+      panelClientes.classList.remove("hidden");
+      fetchResumenClientes();
 
-      if (chkHeatClientes.checked){
+      chkHeat.checked = false;
+      heat.setLatLngs([]);
+      if (map.hasLayer(heat)) map.removeLayer(heat);
 
-          // --- Mostrar panel clientes ---
-          panelClientes.classList.remove("hidden");
-          fetchResumenClientes();    // muestra el panel informativo
-
-          // --- Exclusividad: desactiva Heatmap de ATMs ---
-          chkHeat.checked = false;
-          heat.setLatLngs([]);
-          if (map.hasLayer(heat)) map.removeLayer(heat);
-
-          // --- Cargar heatmap de clientes ---
-          fetchClientes();
-
-      } else {
-
-          // Ocultar panel clientes
-          panelClientes.classList.add("hidden");
-
-          // Eliminar capa heatClientes
-          heatClientes.setLatLngs([]);
-          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
-      }
+      fetchClientes();
+    } else {
+      panelClientes.classList.add("hidden");
+      heatClientes.setLatLngs([]);
+      if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+    }
   };
-
-
 
 } else {
   selDep.onchange  = ()=>{ updateProvincias(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes();};
@@ -2608,108 +2484,59 @@ if(TIPO_MAPA === "integral"){
   selDist.onchange = ()=>{ updateDivisiones(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes();};
   selDiv.onchange  = ()=> fetchPoints();
 
-  // ============================================
-  // Filtro de segmento — actualiza HEATMAP + PANEL
-  // ============================================
   selSegmento.onchange = () => {
-      if (chkHeatClientes.checked){
-          fetchClientes();          // Actualiza heatmap de clientes
-          fetchResumenClientes();   // Actualiza panel de resumen
-      }
+    if (chkHeatClientes.checked){
+      fetchClientes();
+      fetchResumenClientes();
+    }
   };
-
 
   if (selTipoATM)  selTipoATM.onchange  = () => fetchPoints();
   if (selUbicATM)  selUbicATM.onchange  = () => fetchPoints();
 
-  // ======================================================================
-  // MOD — Exclusividad ATMs vs Clientes + control visual completo
-  // ======================================================================
   chkHeat.onchange = ()=>{
-
-      if (chkHeat.checked){
-
-          // 🔹 Si se enciende el heatmap de ATMs, apagar el heatmap de clientes
-          chkHeatClientes.checked = false;                     // NUEVO
-
-          // Limpiar heatmap de clientes
-          heatClientes.setLatLngs([]);                         // NUEVO
-          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);  // NUEVO
-
-          // Encender ATMs
-          //if (!map.hasLayer(heat)) map.addLayer(heat); //LO DEJAMOS PORSI
-          fetchPoints(); 
-
-      } else {
-
-          // Apagar ATMs
-          heat.setLatLngs([]);
-          if (map.hasLayer(heat)) map.removeLayer(heat);
-
-          // Si clientes está marcado, volver a activar su heatmap
-          if (chkHeatClientes.checked){                        // NUEVO
-              fetchClientes();                                 // NUEVO
-          }
-      }
+    if (chkHeat.checked){
+      chkHeatClientes.checked = false;
+      panelClientes.classList.add("hidden");
+      heatClientes.setLatLngs([]);
+      if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+      fetchPoints();
+    } else {
+      heat.setLatLngs([]);
+      if (map.hasLayer(heat)) map.removeLayer(heat);
+      if (chkHeatClientes.checked) fetchClientes();
+    }
   };
 
-  // ============================================================
-  // NUEVO — Handler unificado para Heatmap Clientes
-  // ============================================================
   chkHeatClientes.onchange = () => {
+    if (chkHeatClientes.checked){
+      panelClientes.classList.remove("hidden");
+      fetchResumenClientes();
 
-      if (chkHeatClientes.checked){
+      chkHeat.checked = false;
+      heat.setLatLngs([]);
+      if (map.hasLayer(heat)) map.removeLayer(heat);
 
-          // --- Mostrar panel clientes ---
-          panelClientes.classList.remove("hidden");
-          fetchResumenClientes();    // muestra el panel informativo
-
-          // --- Exclusividad: desactiva Heatmap de ATMs ---
-          chkHeat.checked = false;
-          heat.setLatLngs([]);
-          if (map.hasLayer(heat)) map.removeLayer(heat);
-
-          // --- Cargar heatmap de clientes ---
-          fetchClientes();
-
-      } else {
-
-          // Ocultar panel clientes
-          panelClientes.classList.add("hidden");
-
-          // Eliminar capa heatClientes
-          heatClientes.setLatLngs([]);
-          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
-      }
+      fetchClientes();
+    } else {
+      panelClientes.classList.add("hidden");
+      heatClientes.setLatLngs([]);
+      if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+    }
   };
-
-
 }
 
-// =============================================================
-// Handler UNIVERSAL para capa de Recomendaciones (⚡)
-// Funciona para TODAS las vistas (ATM, Agentes, Oficinas, Integral)
-// =============================================================
+// Handler UNIVERSAL Recomendaciones
 chkReco.onchange = () => {
-
-    if (chkReco.checked){
-        // Recargar datos
-        cargarRecomendaciones();
-
-        // Asegurar que la capa se dibuje
-        if (!map.hasLayer(markersReco)){
-            markersReco.addTo(map);
-        }
-    } else {
-        // Eliminar la capa
-        if (map.hasLayer(markersReco)){
-            map.removeLayer(markersReco);
-        }
-    }
+  if (chkReco.checked){
+    cargarRecomendaciones();
+    if (!map.hasLayer(markersReco)) markersReco.addTo(map);
+  } else {
+    if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
+  }
 };
 
-
-// Inicializar combos y render
+// Inicializar
 updateProvincias();
 if(TIPO_MAPA === "integral"){
   syncIntegralPanelsVisibility();
@@ -2719,22 +2546,9 @@ if(TIPO_MAPA === "integral"){
   fetchPoints();
 }
 
-// ======================================================================
-// NUEVO — Recargar heatmap de CLIENTES cuando se hace zoom (si está activo)
-// ======================================================================
-map.on("zoomend", ()=>{       
-  if (chkHeatClientes.checked){
-    fetchClientes();
-  }
+map.on("zoomend", ()=>{
+  if (chkHeatClientes.checked) fetchClientes();
 });
-
-// ======================================================================
-// NUEVO — Si Clientes viene activado al cargar, pintarlo
-// ======================================================================
-if (chkHeatClientes.checked){             // NUEVO
-    fetchClientes();                      // NUEVO
-}
-
 </script>
 
 </body>
@@ -2744,6 +2558,3 @@ if (chkHeatClientes.checked){             // NUEVO
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-    
