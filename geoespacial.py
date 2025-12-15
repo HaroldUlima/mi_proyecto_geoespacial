@@ -1140,6 +1140,8 @@ def api_points_integral():
 #   ✅ NUEVO:
 #   - BORDE NEÓN AZUL POR DIVISIÓN (Convex Hull / Rectángulo)
 #   - FUNCIONA EN: ISLAS, OFICINAS, AGENTES, INTEGRAL
+#   ✅ MEJORADO:
+#   - BORDE COMO TU CAPTURA: doble capa (glow + main)
 # ============================================================
 TEMPLATE_MAPA = """
 <!doctype html>
@@ -1169,8 +1171,8 @@ TEMPLATE_MAPA = """
   --muted:#6b7a8a;
   --card:#ffffff;
 
-  /* ✅ Neón azul para borde de División */
-  --neon-blue:#00B7FF;
+  /* ✅ Azul fuerte como tu captura */
+  --neon-blue:#1E6CFF;
 }
 html,body{
   margin:0;
@@ -1348,10 +1350,12 @@ input[type="checkbox"]{
   box-shadow:0 6px 20px rgba(0,0,0,0.25);
 }
 
-/* ✅ Estilo neón para el BORDE DE DIVISIÓN (Leaflet path) */
+/* ✅ Glow potente como tu captura */
 .division-neon{
-  filter: drop-shadow(0 0 6px rgba(0,183,255,0.85))
-          drop-shadow(0 0 14px rgba(0,183,255,0.55));
+  filter:
+    drop-shadow(0 0 10px rgba(30,108,255,0.95))
+    drop-shadow(0 0 22px rgba(30,108,255,0.70))
+    drop-shadow(0 0 38px rgba(30,108,255,0.40));
 }
 </style>
 </head>
@@ -1668,9 +1672,9 @@ const selSegmento = document.getElementById("selSegmento");
 const chkReco = document.getElementById("chkReco");
 
 // ======================================================
-// ✅ NUEVO: BORDE NEÓN POR DIVISIÓN (Convex Hull / Rectángulo)
-// - Se dibuja SOLO si selDiv tiene valor
-// - Funciona para TODAS las vistas (islas/oficinas/agentes/integral)
+// ✅ BORDE NEÓN POR DIVISIÓN (GROSOR + COLOR COMO CAPTURA)
+// - Doble capa: "glow" + "main"
+// - Funciona para: ISLAS, OFICINAS, AGENTES, INTEGRAL
 // ======================================================
 let divisionBorderLayer = null;
 
@@ -1685,18 +1689,16 @@ function clearDivisionBorder(){
 function convexHullLatLng(latlngs){
   if(!latlngs || latlngs.length <= 2) return latlngs || [];
 
-  // quitar duplicados simples
   const uniq = new Map();
   latlngs.forEach(ll=>{
     const k = ll.lat.toFixed(6) + "," + ll.lng.toFixed(6);
     uniq.set(k, ll);
   });
-  const pts = Array.from(uniq.values()).map(ll => ({x: ll.lng, y: ll.lat}));
 
+  const pts = Array.from(uniq.values()).map(ll => ({x: ll.lng, y: ll.lat}));
   if(pts.length <= 2) return pts.map(p => L.latLng(p.y, p.x));
 
   pts.sort((a,b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
-
   const cross = (o,a,b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
 
   const lower = [];
@@ -1710,9 +1712,9 @@ function convexHullLatLng(latlngs){
     while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
     upper.push(p);
   }
+
   upper.pop(); lower.pop();
   const hull = lower.concat(upper);
-
   return hull.map(p => L.latLng(p.y, p.x));
 }
 
@@ -1732,17 +1734,33 @@ function drawDivisionBorder(latlngs){
   clearDivisionBorder();
   if(!latlngs || latlngs.length === 0) return;
 
-  divisionBorderLayer = L.polygon(latlngs, {
-    color: "#00B7FF",
-    weight: 4,
-    opacity: 0.95,
+  // ✅ Capa glow (más gruesa y transparente)
+  const glow = L.polygon(latlngs, {
+    color: "#1E6CFF",
+    weight: 18,        // <- grosor glow
+    opacity: 0.22,
     fill: false,
-    dashArray: "10 12",
     lineCap: "round",
     lineJoin: "round",
     interactive: false,
     className: "division-neon"
-  }).addTo(map);
+  });
+
+  // ✅ Capa principal (borde fuerte)
+  const main = L.polygon(latlngs, {
+    color: "#1E6CFF",
+    weight: 9,         // <- grosor real como captura
+    opacity: 0.98,
+    fill: false,
+    lineCap: "round",
+    lineJoin: "round",
+    interactive: false,
+    className: "division-neon"
+  });
+
+  divisionBorderLayer = L.layerGroup([glow, main]).addTo(map);
+
+  try { glow.bringToFront(); main.bringToFront(); } catch(e){}
 }
 
 function updateDivisionBorderFromPoints(latlngs){
@@ -1765,6 +1783,7 @@ function updateDivisionBorderFromPoints(latlngs){
       outline = rectFromLatLngs(latlngs);
     }
   }
+
   drawDivisionBorder(outline);
 }
 
