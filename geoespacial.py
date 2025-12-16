@@ -1066,9 +1066,9 @@ TEMPLATE_MAPA = """
     .legend{ margin-top:10px; }
     .legend .legend-item{ display:flex; align-items:center; gap:10px; margin-top:6px; }
     .legend .legend-item img{
-      width:28px; height:28px; object-fit:contain;
-      background:#fff; border:1px solid #e6eef8; border-radius:8px;
-      padding:3px; box-shadow:0 2px 8px rgba(0,0,0,0.06);
+      width:44px; height:44px; object-fit:contain;   /* ✅ MÁS GRANDE */
+      background:#fff; border:1px solid #e6eef8; border-radius:10px;
+      padding:4px; box-shadow:0 2px 8px rgba(0,0,0,0.06);
     }
     .legend .legend-item .lbl{ color:var(--muted); font-size:12px; }
     .icon-reco { font-size: 22px; color: #ffcc00; text-shadow: 0 0 4px black; }
@@ -1219,11 +1219,11 @@ TEMPLATE_MAPA = """
         <div class="legend">
           <div style="font-weight:700;">Leyenda</div>
           <div class="legend-item">
-            <img src="{{ url_for('static', filename='atm_oficina.png') }}" alt="ATM Oficina">
+            <img src="{{ url_for('static', filename='atm_oficina1.png') }}" alt="ATM Oficina">
             <div class="lbl">ATM en Oficina</div>
           </div>
           <div class="legend-item">
-            <img src="{{ url_for('static', filename='atm_isla.png') }}" alt="ATM Isla">
+            <img src="{{ url_for('static', filename='atm_isla1.png') }}" alt="ATM Isla">
             <div class="lbl">ATM en Isla</div>
           </div>
         </div>
@@ -1252,7 +1252,7 @@ TEMPLATE_MAPA = """
         <div class="legend">
           <div style="font-weight:700;">Leyenda</div>
           <div class="legend-item">
-            <img src="{{ url_for('static', filename='oficina.png') }}" alt="Oficina">
+            <img src="{{ url_for('static', filename='oficina1.png') }}" alt="Oficina">
             <div class="lbl">Oficina</div>
           </div>
         </div>
@@ -1278,7 +1278,7 @@ TEMPLATE_MAPA = """
         <div class="legend">
           <div style="font-weight:700;">Leyenda</div>
           <div class="legend-item">
-            <img src="{{ url_for('static', filename='agente.png') }}" alt="Agente">
+            <img src="{{ url_for('static', filename='agente1.png') }}" alt="Agente">
             <div class="lbl">Agente</div>
           </div>
         </div>
@@ -1323,15 +1323,17 @@ TEMPLATE_MAPA = """
     const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
     const INITIAL_ZOOM = {{ initial_zoom }};
 
-    const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina.png') }}";
-    const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla.png') }}";
-    const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina.png') }}";
-    const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente.png') }}";
+    // ✅ SOLO CAMBIO: nuevos filenames + íconos más grandes
+    const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina1.png') }}";
+    const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla1.png') }}";
+    const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina1.png') }}";
+    const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente1.png') }}";
 
-    const ICON_ATM_OFICINA = L.icon({ iconUrl: ICON_ATM_OFICINA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20] });
-    const ICON_ATM_ISLA    = L.icon({ iconUrl: ICON_ATM_ISLA_URL,    iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20] });
-    const ICON_OFICINA     = L.icon({ iconUrl: ICON_OFICINA_URL,     iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20] });
-    const ICON_AGENTE      = L.icon({ iconUrl: ICON_AGENTE_URL,      iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-20] });
+    // ✅ ÍCONOS MÁS GRANDES (MAPA)
+    const ICON_ATM_OFICINA = L.icon({ iconUrl: ICON_ATM_OFICINA_URL, iconSize:[56,56], iconAnchor:[28,28], popupAnchor:[0,-28] });
+    const ICON_ATM_ISLA    = L.icon({ iconUrl: ICON_ATM_ISLA_URL,    iconSize:[56,56], iconAnchor:[28,28], popupAnchor:[0,-28] });
+    const ICON_OFICINA     = L.icon({ iconUrl: ICON_OFICINA_URL,     iconSize:[56,56], iconAnchor:[28,28], popupAnchor:[0,-28] });
+    const ICON_AGENTE      = L.icon({ iconUrl: ICON_AGENTE_URL,      iconSize:[56,56], iconAnchor:[28,28], popupAnchor:[0,-28] });
 
     function getIcon(pt){
       const ubic = (pt.ubicacion || "").toUpperCase();
