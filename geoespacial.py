@@ -70,14 +70,20 @@ def normalize_col(s):
 def clean_str(x):
     return str(x).upper().strip() if pd.notnull(x) else ""
 
+def to_num_series(s):
+    return pd.to_numeric(s, errors="coerce").fillna(0.0)
+
 def parse_percent_series(s):
-    """ Convierte series tipo '84.24%' o 0.8424 a un número 0..100. """
+    """
+    Convierte series tipo '84.24%' o 0.8424 a un número 0..100.
+    """
     if s is None:
         return pd.Series([0.0])
     ss = s.astype(str).str.replace(",", ".", regex=False)
     ss = ss.str.replace("%", "", regex=False)
     ss = ss.str.replace(r"[^\d\.\-]", "", regex=True)
     v = pd.to_numeric(ss, errors="coerce").fillna(0.0)
+    # si viene como 0-1, lo pasamos a 0-100
     if len(v) and v.max() <= 1.0:
         v = v * 100.0
     return v
@@ -121,6 +127,7 @@ for c in [COL_ATM, COL_DEPT, COL_PROV, COL_DIST, COL_LAT, COL_LON, COL_DIV, COL_
         raw[c] = ""
 
 df = raw.copy()
+
 df[COL_LAT] = (
     df[COL_LAT].astype(str)
     .str.replace(",", ".", regex=False)
@@ -136,6 +143,7 @@ df[COL_LON] = (
     .astype(float)
 )
 df = df.dropna(subset=[COL_LAT, COL_LON]).reset_index(drop=True)
+
 df[PROM_COL] = pd.to_numeric(df[PROM_COL], errors="coerce").fillna(0.0)
 df[COL_TIPO] = df[COL_TIPO].astype(str).fillna("")
 df[COL_UBIC] = df[COL_UBIC].astype(str).fillna("")
@@ -189,12 +197,13 @@ raw_ag[COLA_LON] = (
     .replace("", np.nan)
     .astype(float)
 )
+
 df_agentes = raw_ag.dropna(subset=[COLA_LAT, COLA_LON]).reset_index(drop=True)
 df_agentes[PROMA_COL] = pd.to_numeric(df_agentes[PROMA_COL], errors="coerce").fillna(0.0)
 df_agentes[COLA_CAPA] = df_agentes[COLA_CAPA].astype(str).fillna("")
 
 # ============================================================
-# 2C. CARGAR EXCEL DE OFICINAS ✅ (COLUMNAS NUEVAS)
+# 2C. CARGAR EXCEL DE OFICINAS  ✅ (AHORA CON COLUMNAS NUEVAS)
 # ============================================================
 excel_oficinas = os.path.join(BASE_DIR, "data", "OFICINAS.xlsx")
 if not os.path.exists(excel_oficinas):
@@ -220,6 +229,7 @@ COLF_LAT  = find_col_of(["LATITUD", "LAT"]) or "LATITUD"
 COLF_LON  = find_col_of(["LONGITUD", "LON"]) or "LONGITUD"
 COLF_TRX  = find_col_of(["TRX", "TRXS"]) or "TRX"
 
+# ✅ NUEVAS COLUMNAS (PROMEDIOS)
 COLF_EAS = find_col_of(["ESTRUCTURA AS", "ESTRUCTURA_AS"]) or "ESTRUCTURA AS"
 COLF_EBP = find_col_of(["ESTRUCTURA EBP", "ESTRUCTURA_EBP"]) or "ESTRUCTURA EBP"
 COLF_EAD = find_col_of(["ESTRUCTURA AD", "ESTRUCTURA_AD"]) or "ESTRUCTURA AD"
@@ -245,7 +255,9 @@ raw_of[COLF_LON] = (
     .replace("", np.nan)
     .astype(float)
 )
+
 df_oficinas = raw_of.dropna(subset=[COLF_LAT, COLF_LON]).reset_index(drop=True)
+
 df_oficinas[COLF_TRX] = pd.to_numeric(df_oficinas[COLF_TRX], errors="coerce").fillna(0.0)
 df_oficinas[COLF_EAS] = pd.to_numeric(df_oficinas[COLF_EAS], errors="coerce").fillna(0.0)
 df_oficinas[COLF_EBP] = pd.to_numeric(df_oficinas[COLF_EBP], errors="coerce").fillna(0.0)
@@ -459,8 +471,9 @@ SELECTOR_TEMPLATE = """
     .card{
       width:320px; height:260px; background:white; border-radius:20px;
       box-shadow:0 8px 26px rgba(0,0,0,0.15);
-      cursor:pointer; display:flex; flex-direction:column; align-items:center;
-      justify-content:flex-start; padding:16px 14px;
+      cursor:pointer;
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+      padding:16px 14px;
       transition:transform .18s ease, box-shadow .18s ease;
     }
     .card:hover{ transform:translateY(-4px) scale(1.02); box-shadow:0 12px 32px rgba(0,0,0,0.25); }
@@ -570,21 +583,16 @@ def api_points():
         dff[COL_UBIC] = dff[COL_UBIC].astype(str).str.upper().str.strip()
         dff[COL_TIPO] = dff[COL_TIPO].astype(str).str.upper().str.strip()
 
-        if dpto:
-            dff = dff[dff[COL_DEPT] == dpto]
-        if prov:
-            dff = dff[dff[COL_PROV] == prov]
-        if dist:
-            dff = dff[dff[COL_DIST] == dist]
-        if divi:
-            dff = dff[dff[COL_DIV] == divi]
-        if tipo_atm:
-            dff = dff[dff[COL_TIPO].str.contains(tipo_atm, na=False)]
-        if ubic_atm:
-            dff = dff[dff[COL_UBIC].str.contains(ubic_atm, na=False)]
+        if dpto: dff = dff[dff[COL_DEPT] == dpto]
+        if prov: dff = dff[dff[COL_PROV] == prov]
+        if dist: dff = dff[dff[COL_DIST] == dist]
+        if divi: dff = dff[dff[COL_DIV] == divi]
+        if tipo_atm: dff = dff[dff[COL_TIPO].str.contains(tipo_atm, na=False)]
+        if ubic_atm: dff = dff[dff[COL_UBIC].str.contains(ubic_atm, na=False)]
 
         total_atms = int(len(dff))
         suma_total = float(dff[PROM_COL].sum()) if total_atms > 0 else 0.0
+
         total_oficinas = int(dff[COL_UBIC].str.contains("OFICINA", na=False).sum())
         total_islas = int(dff[COL_UBIC].str.contains("ISLA", na=False).sum())
         total_disp = int(dff[COL_TIPO].str.contains("DISPENSADOR", na=False).sum())
@@ -640,17 +648,13 @@ def api_points():
         dff[COLA_DEPT] = dff[COLA_DEPT].astype(str).str.upper().str.strip()
         dff[COLA_PROV] = dff[COLA_PROV].astype(str).str.upper().str.strip()
         dff[COLA_DIST] = dff[COLA_DIST].astype(str).str.upper().str.strip()
-        dff[COLA_DIV]  = dff[COLA_DIV].astype(str).str.upper().str.strip()
+        dff[COLA_DIV] = dff[COLA_DIV].astype(str).str.upper().str.strip()
         dff[COLA_CAPA] = dff[COLA_CAPA].astype(str).str.upper().str.strip()
 
-        if dpto:
-            dff = dff[dff[COLA_DEPT] == dpto]
-        if prov:
-            dff = dff[dff[COLA_PROV] == prov]
-        if dist:
-            dff = dff[dff[COLA_DIST] == dist]
-        if divi:
-            dff = dff[dff[COLA_DIV] == divi]
+        if dpto: dff = dff[dff[COLA_DEPT] == dpto]
+        if prov: dff = dff[dff[COLA_PROV] == prov]
+        if dist: dff = dff[dff[COLA_DIST] == dist]
+        if divi: dff = dff[dff[COLA_DIV] == divi]
 
         total_agentes = int(len(dff))
         suma_total = float(dff[PROMA_COL].sum()) if total_agentes > 0 else 0.0
@@ -659,8 +663,8 @@ def api_points():
         total_capa_A1 = int((capa_series == "A1").sum())
         total_capa_A2 = int((capa_series == "A2").sum())
         total_capa_A3 = int((capa_series == "A3").sum())
-        total_capa_B  = int((capa_series == "B").sum())
-        total_capa_C  = int((capa_series == "C").sum())
+        total_capa_B = int((capa_series == "B").sum())
+        total_capa_C = int((capa_series == "C").sum())
 
         puntos = []
         for _, r in dff.iterrows():
@@ -701,32 +705,29 @@ def api_points():
             "total_capa_C": total_capa_C,
         })
 
-    # ---------------------- CAPA OFICINAS ✅ (CON PROMEDIOS) ----------------------
+    # ---------------------- CAPA OFICINAS ✅ (CON PROMEDIOS NUEVOS) ----------------------
     if tipo_mapa == "oficinas":
         dff = df_oficinas.copy()
         dff[COLF_DEPT] = dff[COLF_DEPT].astype(str).str.upper().str.strip()
         dff[COLF_PROV] = dff[COLF_PROV].astype(str).str.upper().str.strip()
         dff[COLF_DIST] = dff[COLF_DIST].astype(str).str.upper().str.strip()
-        dff[COLF_DIV]  = dff[COLF_DIV].astype(str).str.upper().str.strip()
+        dff[COLF_DIV] = dff[COLF_DIV].astype(str).str.upper().str.strip()
 
-        if dpto:
-            dff = dff[dff[COLF_DEPT] == dpto]
-        if prov:
-            dff = dff[dff[COLF_PROV] == prov]
-        if dist:
-            dff = dff[dff[COLF_DIST] == dist]
-        if divi:
-            dff = dff[dff[COLF_DIV] == divi]
+        if dpto: dff = dff[dff[COLF_DEPT] == dpto]
+        if prov: dff = dff[dff[COLF_PROV] == prov]
+        if dist: dff = dff[dff[COLF_DIST] == dist]
+        if divi: dff = dff[dff[COLF_DIV] == divi]
 
         total_oficinas = int(len(dff))
         suma_total = float(dff[COLF_TRX].sum()) if total_oficinas > 0 else 0.0
 
+        # ✅ PROMEDIOS REQUERIDOS
         prom_eas = float(dff[COLF_EAS].mean()) if total_oficinas > 0 else 0.0
         prom_ebp = float(dff[COLF_EBP].mean()) if total_oficinas > 0 else 0.0
         prom_ead = float(dff[COLF_EAD].mean()) if total_oficinas > 0 else 0.0
         prom_cli = float(dff[COLF_CLI].mean()) if total_oficinas > 0 else 0.0
         prom_tkt = float(dff[COLF_TKT].mean()) if total_oficinas > 0 else 0.0
-        prom_red = float(dff[COLF_RED].mean()) if total_oficinas > 0 else 0.0
+        prom_red = float(dff[COLF_RED].mean()) if total_oficinas > 0 else 0.0  # 0..100
 
         puntos = []
         for _, r in dff.iterrows():
@@ -761,6 +762,8 @@ def api_points():
             "total_capa_A3": 0,
             "total_capa_B": 0,
             "total_capa_C": 0,
+
+            # ✅ nuevos campos para el panel (debajo de suma TRX)
             "prom_estructura_as": prom_eas,
             "prom_estructura_ebp": prom_ebp,
             "prom_estructura_ad": prom_ead,
@@ -801,17 +804,13 @@ def api_clientes():
     dpto = request.args.get("departamento", "").upper().strip()
     prov = request.args.get("provincia", "").upper().strip()
     dist = request.args.get("distrito", "").upper().strip()
-    seg  = request.args.get("segmento", "").upper().strip()
+    seg = request.args.get("segmento", "").upper().strip()
 
     dff = df_clientes.copy()
-    if dpto:
-        dff = dff[dff["departamento"].str.upper() == dpto]
-    if prov:
-        dff = dff[dff["provincia"].str.upper() == prov]
-    if dist:
-        dff = dff[dff["distrito"].str.upper() == dist]
-    if seg:
-        dff = dff[dff["segmento"].astype(str).str.upper() == seg]
+    if dpto: dff = dff[dff["departamento"].str.upper() == dpto]
+    if prov: dff = dff[dff["provincia"].str.upper() == prov]
+    if dist: dff = dff[dff["distrito"].str.upper() == dist]
+    if seg:  dff = dff[dff["segmento"].astype(str).str.upper() == seg]
 
     if dff.empty:
         return jsonify([])
@@ -843,23 +842,15 @@ def api_resumen_clientes():
     segmento = request.args.get("segmento", "").upper().strip()
 
     dff = df_clientes.copy()
-    if dpto:
-        dff = dff[dff["departamento"].str.upper() == dpto]
-    if prov:
-        dff = dff[dff["provincia"].str.upper() == prov]
-    if dist:
-        dff = dff[dff["distrito"].str.upper() == dist]
-    if segmento:
-        dff = dff[dff["segmento"].astype(str).str.upper() == segmento]
+    if dpto: dff = dff[dff["departamento"].str.upper() == dpto]
+    if prov: dff = dff[dff["provincia"].str.upper() == prov]
+    if dist: dff = dff[dff["distrito"].str.upper() == dist]
+    if segmento: dff = dff[dff["segmento"].astype(str).str.upper() == segmento]
 
     if dff.empty:
         return jsonify({
-            "total": 0,
-            "digital_pct": 0,
-            "edad_prom": 0,
-            "ingreso_prom": 0,
-            "deuda_prom": 0,
-            "top_segmento": "—"
+            "total": 0, "digital_pct": 0, "edad_prom": 0,
+            "ingreso_prom": 0, "deuda_prom": 0, "top_segmento": "—"
         })
 
     total = len(dff)
@@ -880,7 +871,7 @@ def api_resumen_clientes():
 
 # ============================================================
 # API INTEGRAL /api/points_integral — 3 CAPAS
-# ✅ DEVUELVE PROMEDIOS DE OFICINAS PARA EL PANEL
+# ✅ AHORA DEVUELVE PROMEDIOS DE OFICINAS PARA EL PANEL
 # ============================================================
 @app.route("/api/points_integral")
 @login_required
@@ -899,14 +890,10 @@ def api_points_integral():
     dfA[COL_UBIC] = dfA[COL_UBIC].astype(str).str.upper().str.strip()
     dfA[COL_TIPO] = dfA[COL_TIPO].astype(str).str.upper().str.strip()
 
-    if dpto:
-        dfA = dfA[dfA[COL_DEPT] == dpto]
-    if prov:
-        dfA = dfA[dfA[COL_PROV] == prov]
-    if dist:
-        dfA = dfA[dfA[COL_DIST] == dist]
-    if divi:
-        dfA = dfA[dfA[COL_DIV] == divi]
+    if dpto: dfA = dfA[dfA[COL_DEPT] == dpto]
+    if prov: dfA = dfA[dfA[COL_PROV] == prov]
+    if dist: dfA = dfA[dfA[COL_DIST] == dist]
+    if divi: dfA = dfA[dfA[COL_DIV] == divi]
 
     puntos_atm = []
     suma_atm = float(dfA[PROM_COL].sum())
@@ -935,25 +922,22 @@ def api_points_integral():
     dfO[COLF_DIST] = dfO[COLF_DIST].astype(str).str.upper().str.strip()
     dfO[COLF_DIV]  = dfO[COLF_DIV].astype(str).str.upper().str.strip()
 
-    if dpto:
-        dfO = dfO[dfO[COLF_DEPT] == dpto]
-    if prov:
-        dfO = dfO[dfO[COLF_PROV] == prov]
-    if dist:
-        dfO = dfO[dfO[COLF_DIST] == dist]
-    if divi:
-        dfO = dfO[dfO[COLF_DIV] == divi]
+    if dpto: dfO = dfO[dfO[COLF_DEPT] == dpto]
+    if prov: dfO = dfO[dfO[COLF_PROV] == prov]
+    if dist: dfO = dfO[dfO[COLF_DIST] == dist]
+    if divi: dfO = dfO[dfO[COLF_DIV] == divi]
 
     puntos_of = []
     suma_of = float(dfO[COLF_TRX].sum())
 
+    # ✅ PROMEDIOS OFICINAS PARA PANEL INTEGRAL
     total_of = int(len(dfO))
     prom_of_eas = float(dfO[COLF_EAS].mean()) if total_of > 0 else 0.0
     prom_of_ebp = float(dfO[COLF_EBP].mean()) if total_of > 0 else 0.0
     prom_of_ead = float(dfO[COLF_EAD].mean()) if total_of > 0 else 0.0
     prom_of_cli = float(dfO[COLF_CLI].mean()) if total_of > 0 else 0.0
     prom_of_tkt = float(dfO[COLF_TKT].mean()) if total_of > 0 else 0.0
-    prom_of_red = float(dfO[COLF_RED].mean()) if total_of > 0 else 0.0
+    prom_of_red = float(dfO[COLF_RED].mean()) if total_of > 0 else 0.0  # 0..100
 
     for _, r in dfO.iterrows():
         puntos_of.append({
@@ -980,14 +964,10 @@ def api_points_integral():
     dfG[COLA_DIV]  = dfG[COLA_DIV].astype(str).str.upper().str.strip()
     dfG[COLA_CAPA] = dfG[COLA_CAPA].astype(str).str.upper().str.strip()
 
-    if dpto:
-        dfG = dfG[dfG[COLA_DEPT] == dpto]
-    if prov:
-        dfG = dfG[dfG[COLA_PROV] == prov]
-    if dist:
-        dfG = dfG[dfG[COLA_DIST] == dist]
-    if divi:
-        dfG = dfG[dfG[COLA_DIV] == divi]
+    if dpto: dfG = dfG[dfG[COLA_DEPT] == dpto]
+    if prov: dfG = dfG[dfG[COLA_PROV] == prov]
+    if dist: dfG = dfG[dfG[COLA_DIST] == dist]
+    if divi: dfG = dfG[dfG[COLA_DIV] == divi]
 
     puntos_ag = []
     suma_ag = float(dfG[PROMA_COL].sum())
@@ -1021,6 +1001,8 @@ def api_points_integral():
         "total_atms": len(puntos_atm),
         "total_oficinas": len(puntos_of),
         "total_agentes": len(puntos_ag),
+
+        # ✅ NUEVOS CAMPOS (PROMEDIOS OFICINAS) PARA PANEL OFICINAS EN INTEGRAL
         "prom_ofi_estructura_as": prom_of_eas,
         "prom_ofi_estructura_ebp": prom_of_ebp,
         "prom_ofi_estructura_ad": prom_of_ead,
@@ -1031,10 +1013,10 @@ def api_points_integral():
 
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
-# ✅ ICONOS GRANDES + FONDO NEGRO EN MAPA + FONDO NEGRO EN LEYENDA
-# ✅ PROMEDIOS EN PANEL OFICINAS (OFICINAS + INTEGRAL)
+# ✅ + PROMEDIOS EN PANEL OFICINAS (OFICINAS + INTEGRAL)
+# ✅ + ÍCONOS MÁS GRANDES EN MAPA + LEYENDAS MÁS GRANDES
 # ============================================================
-TEMPLATE_MAPA = r"""
+TEMPLATE_MAPA = """
 <!doctype html>
 <html>
 <head>
@@ -1051,13 +1033,8 @@ TEMPLATE_MAPA = r"""
       --muted:#6b7a8a;
       --card:#ffffff;
       --neon-blue:#1E6CFF;
-      --pin-bg:#000000;
     }
-    html,body{
-      margin:0; padding:0; height:100%;
-      font-family:Inter,Arial,Helvetica,sans-serif;
-      background:#eef4fb;
-    }
+    html,body{ margin:0; padding:0; height:100%; font-family:Inter,Arial,Helvetica,sans-serif; background:#eef4fb; }
     header{
       background:#003366; color:white; height:70px;
       display:flex; align-items:center; justify-content:center;
@@ -1080,49 +1057,35 @@ TEMPLATE_MAPA = r"""
     select{ padding:6px 10px; border-radius:8px; border:1px solid #d0d7e3; }
     input[type="checkbox"]{ transform:scale(1.05); }
     .main{ display:flex; padding:0 20px 20px 20px; gap:18px; }
-    #map{
-      flex:1; height:74vh; border-radius:12px; overflow:hidden;
-      box-shadow:0 8px 24px rgba(0,0,0,0.18);
-    }
+    #map{ flex:1; height:74vh; border-radius:12px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.18); }
     .side{ width:360px; display:flex; flex-direction:column; gap:12px; }
-    .side-card{
-      background:white; border-radius:12px; padding:14px 16px;
-      box-shadow:0 6px 22px rgba(0,0,0,0.12); font-size:13px;
-    }
+    .side-card{ background:white; border-radius:12px; padding:14px 16px; box-shadow:0 6px 22px rgba(0,0,0,0.12); font-size:13px; }
     .side-title{ font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
     .muted{ color:var(--muted); font-size:12px; }
     .brand-card{ padding:10px; }
     .brand-card img{ width:100%; height:120px; object-fit:cover; border-radius:10px; display:block; }
-
     .legend{ margin-top:10px; }
-    .legend .legend-item{ display:flex; align-items:center; gap:10px; margin-top:6px; }
-    /* ✅ LEYENDA: fondo negro para no perder colores */
+    .legend .legend-item{ display:flex; align-items:center; gap:12px; margin-top:8px; }
     .legend .legend-item img{
-      width:56px; height:56px; object-fit:contain;
-      background:var(--pin-bg);
-      border:1px solid rgba(255,255,255,0.12);
-      border-radius:12px;
-      padding:6px;
-      box-shadow:0 6px 16px rgba(0,0,0,0.35);
-      filter:saturate(1.25) contrast(1.15);
+      /* ✅ MÁS GRANDE (leyenda) */
+      width:70px; height:70px; object-fit:contain;
+      background:#fff; border:1px solid #e6eef8; border-radius:14px;
+      padding:6px; box-shadow:0 3px 10px rgba(0,0,0,0.10);
     }
     .legend .legend-item .lbl{ color:var(--muted); font-size:12px; }
-
-    .icon-reco { font-size: 22px; color: #ffcc00; text-shadow: 0 0 4px black; }
-
+    .icon-reco { font-size: 30px; color: #ffcc00; text-shadow: 0 0 4px black; } /* ✅ más visible */
     .side-card-atm{
       font-family:"Consolas","Fira Code",monospace;
-      white-space:pre-line;
-      line-height:1.35;
+      white-space:pre-line; line-height:1.35;
       border-left:4px solid var(--bbva-blue);
       position:relative;
     }
     .side-card-atm h3{ margin:0 0 6px 0; font-size:14px; }
     .btn-small{
       display:inline-block; margin-top:8px;
-      padding:4px 10px; border-radius:6px; border:none;
-      background:var(--bbva-blue); color:white; font-size:12px;
-      cursor:pointer;
+      padding:4px 10px; border-radius:6px;
+      border:none; background:var(--bbva-blue);
+      color:white; font-size:12px; cursor:pointer;
     }
     @keyframes panelGlow{
       0%{box-shadow:0 0 0 rgba(20,100,165,0.0);}
@@ -1132,86 +1095,61 @@ TEMPLATE_MAPA = r"""
     .side-card-atm.glow{ animation:panelGlow 2.2s ease-in-out infinite; }
     .hidden{ display:none; }
     .leaflet-popup-content-wrapper{ border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.25); }
-
     .division-neon{
       filter: drop-shadow(0 0 10px rgba(30,108,255,0.95))
               drop-shadow(0 0 22px rgba(30,108,255,0.70))
               drop-shadow(0 0 38px rgba(30,108,255,0.40));
     }
-
-    /* ✅ ICONO EN MAPA: fondo negro + más grande + más contraste */
-    .bbva-pin{
-      background:transparent !important;
-      border:none !important;
-    }
-    .bbva-pin-bg{
-      background:var(--pin-bg);
-      border-radius:16px;
-      padding:7px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      box-shadow:
-        0 0 0 2px rgba(255,255,255,0.10),
-        0 10px 22px rgba(0,0,0,0.55);
-      filter:saturate(1.25) contrast(1.20);
-    }
-    .bbva-pin-bg img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      display:block;
-    }
   </style>
 </head>
 <body>
-<header>
-  <h1>Mapa BBVA — {% if tipo_mapa == 'islas' %} ATMs {% else %} {{ tipo_mapa|upper }} {% endif %}</h1>
-  <a href="/logout" class="logout">Cerrar sesión</a>
-</header>
+  <header>
+    <h1>Mapa BBVA — {% if tipo_mapa == 'islas' %} ATMs {% else %} {{ tipo_mapa|upper }} {% endif %}</h1>
+    <a href="/logout" class="logout">Cerrar sesión</a>
+  </header>
 
-<div class="topbar">
-  <div class="controls">
-    <label>Departamento:
-      <select id="selDepartamento">
-        <option value="">-- Todos --</option>
-        {% for d in departamentos %}
-          <option value="{{d}}">{{d}}</option>
-        {% endfor %}
-      </select>
-    </label>
+  <div class="topbar">
+    <div class="controls">
+      <label>Departamento:
+        <select id="selDepartamento">
+          <option value="">-- Todos --</option>
+          {% for d in departamentos %}
+            <option value="{{d}}">{{d}}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    <label>Provincia:
-      <select id="selProvincia">
-        <option value="">-- Todas --</option>
-      </select>
-    </label>
+      <label>Provincia:
+        <select id="selProvincia">
+          <option value="">-- Todas --</option>
+        </select>
+      </label>
 
-    <label>Distrito:
-      <select id="selDistrito">
-        <option value="">-- Todos --</option>
-      </select>
-    </label>
+      <label>Distrito:
+        <select id="selDistrito">
+          <option value="">-- Todos --</option>
+        </select>
+      </label>
 
-    <label>División:
-      <select id="selDivision">
-        <option value="">-- Todas --</option>
-        {% for dv in divisiones %}
-          <option value="{{dv}}">{{dv}}</option>
-        {% endfor %}
-      </select>
-    </label>
+      <label>División:
+        <select id="selDivision">
+          <option value="">-- Todas --</option>
+          {% for dv in divisiones %}
+            <option value="{{dv}}">{{dv}}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    <label>Segmento:
-      <select id="selSegmento">
-        <option value="">-- Todos --</option>
-        {% for seg in segment_list %}
-          <option value="{{ seg }}">{{ seg }}</option>
-        {% endfor %}
-      </select>
-    </label>
+      <label>Segmento:
+        <select id="selSegmento">
+          <option value="">-- Todos --</option>
+          {% for seg in segment_list %}
+            <option value="{{ seg }}">{{ seg }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    {% if tipo_mapa == 'islas' %}
+      {% if tipo_mapa == 'islas' %}
       <label>Tipo ATM:
         <select id="selTipoATM">
           <option value="">-- Todos --</option>
@@ -1228,399 +1166,377 @@ TEMPLATE_MAPA = r"""
           <option value="ISLA">Isla</option>
         </select>
       </label>
-    {% endif %}
+      {% endif %}
 
-    {% if tipo_mapa == 'integral' %}
-      <label style="margin-left:8px;">
-        Canales:
+      {% if tipo_mapa == 'integral' %}
+      <label style="margin-left:8px;">Canales:
         <span style="display:flex; gap:10px; margin-left:6px;">
           <label style="gap:4px;"><input type="checkbox" id="chkShowATMs" checked> ATMs</label>
           <label style="gap:4px;"><input type="checkbox" id="chkShowOficinas" checked> Oficinas</label>
           <label style="gap:4px;"><input type="checkbox" id="chkShowAgentes" checked> Agentes</label>
         </span>
       </label>
-    {% endif %}
+      {% endif %}
 
-    <label style="margin-left:16px;"><input type="checkbox" id="chkHeat" checked> Heatmap</label>
-    <label style="margin-left:16px;"><input type="checkbox" id="chkHeatClientes"> Heatmap Clientes</label>
-    <label style="margin-left:16px;"><input type="checkbox" id="chkReco"> Recomendaciones</label>
+      <label style="margin-left:16px;"><input type="checkbox" id="chkHeat" checked> Heatmap</label>
+      <label style="margin-left:16px;"><input type="checkbox" id="chkHeatClientes"> Heatmap Clientes</label>
+      <label style="margin-left:16px;"><input type="checkbox" id="chkReco"> Recomendaciones</label>
 
-    <div style="flex:1"></div>
-    <div style="font-size:13px; color:var(--muted);">
-      Mostrando <span id="infoCount">--</span> {% if tipo_mapa == 'integral' %} puntos {% else %} registros {% endif %}
+      <div style="flex:1"></div>
+      <div style="font-size:13px; color:var(--muted);">
+        Mostrando <span id="infoCount">--</span> {% if tipo_mapa == 'integral' %} puntos {% else %} registros {% endif %}
+      </div>
     </div>
   </div>
-</div>
 
-<div class="main">
-  <div id="map"></div>
+  <div class="main">
+    <div id="map"></div>
 
-  <div class="side">
-    {% if tipo_mapa == 'integral' %}
+    <div class="side">
+      {% if tipo_mapa == 'integral' %}
       <div class="side-card brand-card">
         <img src="{{ url_for('static', filename='banco.png') }}" alt="BBVA">
       </div>
-    {% endif %}
-
-    <div id="panelATMResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'islas' %}hidden{% endif %}">
-      <div class="side-title">🌐 Panel ATMs</div>
-      {% if tipo_mapa == 'integral' %}
-        <div class="muted">Se actualiza con filtros y solo cuenta si ATMs está activado.</div>
-      {% else %}
-        <div class="muted">Se actualiza con filtros (solo ATMs).</div>
       {% endif %}
 
-      <div style="margin-top:8px;"><b>Total ATMs:</b> <span id="resAtmTotal">0</span></div>
-      <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resAtmSuma">0</span></div>
+      <div id="panelATMResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'islas' %}hidden{% endif %}">
+        <div class="side-title">🌐 Panel ATMs</div>
+        {% if tipo_mapa == 'integral' %}
+          <div class="muted">Se actualiza con filtros y solo cuenta si ATMs está activado.</div>
+        {% else %}
+          <div class="muted">Se actualiza con filtros (solo ATMs).</div>
+        {% endif %}
+        <div style="margin-top:8px;"><b>Total ATMs:</b> <span id="resAtmTotal">0</span></div>
+        <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resAtmSuma">0</span></div>
 
-      <div style="margin-top:10px; font-weight:700;">Distribución</div>
-      <div class="muted">ATMs en oficina: <span id="resAtmEnOfi">0</span></div>
-      <div class="muted">ATMs en isla: <span id="resAtmEnIsla">0</span></div>
+        <div style="margin-top:10px; font-weight:700;">Distribución</div>
+        <div class="muted">ATMs en oficina: <span id="resAtmEnOfi">0</span></div>
+        <div class="muted">ATMs en isla: <span id="resAtmEnIsla">0</span></div>
 
-      <div style="margin-top:10px; font-weight:700;">Tipos</div>
-      <div class="muted">Dispensador: <span id="resAtmDisp">0</span></div>
-      <div class="muted">Monedero: <span id="resAtmMon">0</span></div>
-      <div class="muted">Reciclador: <span id="resAtmRec">0</span></div>
+        <div style="margin-top:10px; font-weight:700;">Tipos</div>
+        <div class="muted">Dispensador: <span id="resAtmDisp">0</span></div>
+        <div class="muted">Monedero: <span id="resAtmMon">0</span></div>
+        <div class="muted">Reciclador: <span id="resAtmRec">0</span></div>
 
-      <div class="legend">
-        <div style="font-weight:700;">Leyenda</div>
-        <div class="legend-item">
-          <img src="{{ url_for('static', filename='atm_oficina1.png') }}" alt="ATM Oficina">
-          <div class="lbl">ATM en Oficina</div>
-        </div>
-        <div class="legend-item">
-          <img src="{{ url_for('static', filename='atm_isla1.png') }}" alt="ATM Isla">
-          <div class="lbl">ATM en Isla</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="panelOfiResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'oficinas' %}hidden{% endif %}">
-      <div class="side-title">🏦 Panel Oficinas</div>
-      {% if tipo_mapa == 'integral' %}
-        <div class="muted">Se actualiza con filtros y solo cuenta si Oficinas está activado.</div>
-      {% else %}
-        <div class="muted">Se actualiza con filtros (solo Oficinas).</div>
-      {% endif %}
-
-      <div style="margin-top:8px;"><b>Total Oficinas:</b> <span id="resOfiTotal">0</span></div>
-      <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resOfiSuma">0</span></div>
-
-      <div class="muted" style="margin-top:6px;"><b>Prom. ESTRUCTURA AS:</b> <span id="resOfiPromEAS">0</span></div>
-      <div class="muted"><b>Prom. ESTRUCTURA EBP:</b> <span id="resOfiPromEBP">0</span></div>
-      <div class="muted"><b>Prom. ESTRUCTURA AD:</b> <span id="resOfiPromEAD">0</span></div>
-      <div class="muted"><b>Prom. Clientes únicos:</b> <span id="resOfiPromCLI">0</span></div>
-      <div class="muted"><b>Prom. Total tickets:</b> <span id="resOfiPromTKT">0</span></div>
-      <div class="muted"><b>Prom. Red Lines:</b> <span id="resOfiPromRED">0%</span></div>
-
-      <div class="legend">
-        <div style="font-weight:700;">Leyenda</div>
-        <div class="legend-item">
-          <img src="{{ url_for('static', filename='oficina1.png') }}" alt="Oficina">
-          <div class="lbl">Oficina</div>
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='atm_oficina1.png') }}" alt="ATM Oficina">
+            <div class="lbl">ATM en Oficina</div>
+          </div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='atm_isla1.png') }}" alt="ATM Isla">
+            <div class="lbl">ATM en Isla</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div id="panelAgResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'agentes' %}hidden{% endif %}">
-      <div class="side-title">🧍 Panel Agentes</div>
-      {% if tipo_mapa == 'integral' %}
-        <div class="muted">Se actualiza con filtros y solo cuenta si Agentes está activado.</div>
-      {% else %}
-        <div class="muted">Se actualiza con filtros (solo Agentes).</div>
-      {% endif %}
+      <!-- ✅ PANEL OFICINAS: ahora con promedios debajo de Suma TRX -->
+      <div id="panelOfiResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'oficinas' %}hidden{% endif %}">
+        <div class="side-title">🏦 Panel Oficinas</div>
+        {% if tipo_mapa == 'integral' %}
+          <div class="muted">Se actualiza con filtros y solo cuenta si Oficinas está activado.</div>
+        {% else %}
+          <div class="muted">Se actualiza con filtros (solo Oficinas).</div>
+        {% endif %}
 
-      <div style="margin-top:8px;"><b>Total Agentes:</b> <span id="resAgTotal">0</span></div>
-      <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resAgSuma">0</span></div>
+        <div style="margin-top:8px;"><b>Total Oficinas:</b> <span id="resOfiTotal">0</span></div>
+        <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resOfiSuma">0</span></div>
 
-      <div style="margin-top:10px; font-weight:700;">Capas</div>
-      <div class="muted">A1: <span id="resAgA1">0</span></div>
-      <div class="muted">A2: <span id="resAgA2">0</span></div>
-      <div class="muted">A3: <span id="resAgA3">0</span></div>
-      <div class="muted">B : <span id="resAgB">0</span></div>
-      <div class="muted">C : <span id="resAgC">0</span></div>
+        <!-- ✅ NUEVO: PROMEDIOS -->
+        <div class="muted" style="margin-top:6px;"><b>Prom. ESTRUCTURA AS:</b> <span id="resOfiPromEAS">0</span></div>
+        <div class="muted"><b>Prom. ESTRUCTURA EBP:</b> <span id="resOfiPromEBP">0</span></div>
+        <div class="muted"><b>Prom. ESTRUCTURA AD:</b> <span id="resOfiPromEAD">0</span></div>
+        <div class="muted"><b>Prom. Clientes únicos:</b> <span id="resOfiPromCLI">0</span></div>
+        <div class="muted"><b>Prom. Total tickets:</b> <span id="resOfiPromTKT">0</span></div>
+        <div class="muted"><b>Prom. Red Lines:</b> <span id="resOfiPromRED">0%</span></div>
 
-      <div class="legend">
-        <div style="font-weight:700;">Leyenda</div>
-        <div class="legend-item">
-          <img src="{{ url_for('static', filename='agente1.png') }}" alt="Agente">
-          <div class="lbl">Agente</div>
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='oficina1.png') }}" alt="Oficina">
+            <div class="lbl">Oficina</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div id="panelClientes" class="side-card hidden">
-      <div class="side-title">Clientes visibles</div>
-      <div class="muted">Total clientes: <span id="cliTotal">0</span></div>
-      <div class="muted">% digitales: <span id="cliDigital">0%</span></div>
-      <div class="muted">Edad promedio: <span id="cliEdad">0</span></div>
-      <div class="muted">Ingreso promedio: <span id="cliIngreso">0</span></div>
-      <div class="muted">Deuda promedio: <span id="cliDeuda">0</span></div>
-      <div class="muted">Top segmento: <span id="cliTopSeg">—</span></div>
-    </div>
+      <div id="panelAgResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'agentes' %}hidden{% endif %}">
+        <div class="side-title">🧍 Panel Agentes</div>
+        {% if tipo_mapa == 'integral' %}
+          <div class="muted">Se actualiza con filtros y solo cuenta si Agentes está activado.</div>
+        {% else %}
+          <div class="muted">Se actualiza con filtros (solo Agentes).</div>
+        {% endif %}
+        <div style="margin-top:8px;"><b>Total Agentes:</b> <span id="resAgTotal">0</span></div>
+        <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resAgSuma">0</span></div>
 
-    <div id="panelATM" class="side-card side-card-atm hidden">
-      <h3 id="panelATMTitle">Panel del punto seleccionado</h3>
-      <div id="atmDetalle" style="font-size:12px;"></div>
-      <button id="btnVolver" class="btn-small">VOLVER</button>
-    </div>
+        <div style="margin-top:10px; font-weight:700;">Capas</div>
+        <div class="muted">A1: <span id="resAgA1">0</span></div>
+        <div class="muted">A2: <span id="resAgA2">0</span></div>
+        <div class="muted">A3: <span id="resAgA3">0</span></div>
+        <div class="muted">B : <span id="resAgB">0</span></div>
+        <div class="muted">C : <span id="resAgC">0</span></div>
 
-    <div id="panelReco" class="side-card side-card-atm hidden">
-      <h3 id="recoTitle">Recomendación</h3>
-      <div id="recoDetalle" style="font-size:12px; white-space:pre-line;"></div>
-      <button id="btnRecoVolver" class="btn-small">VOLVER</button>
-    </div>
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <img src="{{ url_for('static', filename='agente1.png') }}" alt="Agente">
+            <div class="lbl">Agente</div>
+          </div>
+        </div>
+      </div>
 
+      <div id="panelClientes" class="side-card hidden">
+        <div class="side-title">Clientes visibles</div>
+        <div class="muted">Total clientes: <span id="cliTotal">0</span></div>
+        <div class="muted">% digitales: <span id="cliDigital">0%</span></div>
+        <div class="muted">Edad promedio: <span id="cliEdad">0</span></div>
+        <div class="muted">Ingreso promedio: <span id="cliIngreso">0</span></div>
+        <div class="muted">Deuda promedio: <span id="cliDeuda">0</span></div>
+        <div class="muted">Top segmento: <span id="cliTopSeg">—</span></div>
+      </div>
+
+      <div id="panelATM" class="side-card side-card-atm hidden">
+        <h3 id="panelATMTitle">Panel del punto seleccionado</h3>
+        <div id="atmDetalle" style="font-size:12px;"></div>
+        <button id="btnVolver" class="btn-small">VOLVER</button>
+      </div>
+
+      <div id="panelReco" class="side-card side-card-atm hidden">
+        <h3 id="recoTitle">Recomendación</h3>
+        <div id="recoDetalle" style="font-size:12px; white-space:pre-line;"></div>
+        <button id="btnRecoVolver" class="btn-small">VOLVER</button>
+      </div>
+    </div>
   </div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
-<script>
-  const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
-  const DIST_BY_PROV = {{ dist_by_prov|tojson }};
-  const DIV_BY_DEPT = {{ div_by_dept|tojson }};
-  const DIV_BY_PROV = {{ div_by_prov|tojson }};
-  const DIV_BY_DIST = {{ div_by_dist|tojson }};
-  const ALL_DIVS = {{ divisiones|tojson }};
+  <script>
+    const PROV_BY_DEPT = {{ provincias_by_dept|tojson }};
+    const DIST_BY_PROV = {{ dist_by_prov|tojson }};
+    const DIV_BY_DEPT  = {{ div_by_dept|tojson }};
+    const DIV_BY_PROV  = {{ div_by_prov|tojson }};
+    const DIV_BY_DIST  = {{ div_by_dist|tojson }};
 
-  const TIPO_MAPA = "{{ tipo_mapa }}";
-  const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
-  const INITIAL_ZOOM = {{ initial_zoom }};
+    const TIPO_MAPA = "{{ tipo_mapa }}";
+    const INITIAL_CENTER = [{{ initial_center[0] }}, {{ initial_center[1] }}];
+    const INITIAL_ZOOM = {{ initial_zoom }};
 
-  // ✅ URLs de iconos (tus 4 capas)
-  const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina1.png') }}"; // azul
-  const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla1.png') }}";    // morado
-  const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina1.png') }}";     // celeste
-  const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente1.png') }}";      // verde
+    const ICON_ATM_OFICINA_URL = "{{ url_for('static', filename='atm_oficina1.png') }}";
+    const ICON_ATM_ISLA_URL    = "{{ url_for('static', filename='atm_isla1.png') }}";
+    const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina1.png') }}";
+    const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente1.png') }}";
 
-  // ✅ TAMAÑO GRANDE EN MAPA (sube o baja aquí)
-  const PIN_SIZE = 84; // MUCHO más grande
+    // ======================================================
+    // ✅ ÍCONOS MÁS GRANDES (MAPA) — COMO TU CAPTURA
+    // ======================================================
+    const ICON_SIZE = 72;                // <-- ajusta aquí si lo quieres aún más grande (ej: 80)
+    const ICON_ANCH = ICON_SIZE / 2;
+    const POP_ANCH  = -ICON_ANCH;
 
-  function makeBBVAPin(url){
-    return L.divIcon({
-      className: "bbva-pin",
-      html: `
-        <div class="bbva-pin-bg" style="width:${PIN_SIZE}px;height:${PIN_SIZE}px;">
-          <img src="${url}" alt="pin">
-        </div>
-      `,
-      iconSize: [PIN_SIZE, PIN_SIZE],
-      iconAnchor: [PIN_SIZE/2, PIN_SIZE/2],
-      popupAnchor: [0, -PIN_SIZE/2]
-    });
-  }
+    const ICON_ATM_OFICINA = L.icon({ iconUrl: ICON_ATM_OFICINA_URL, iconSize:[ICON_SIZE,ICON_SIZE], iconAnchor:[ICON_ANCH,ICON_ANCH], popupAnchor:[0,POP_ANCH] });
+    const ICON_ATM_ISLA    = L.icon({ iconUrl: ICON_ATM_ISLA_URL,    iconSize:[ICON_SIZE,ICON_SIZE], iconAnchor:[ICON_ANCH,ICON_ANCH], popupAnchor:[0,POP_ANCH] });
+    const ICON_OFICINA     = L.icon({ iconUrl: ICON_OFICINA_URL,     iconSize:[ICON_SIZE,ICON_SIZE], iconAnchor:[ICON_ANCH,ICON_ANCH], popupAnchor:[0,POP_ANCH] });
+    const ICON_AGENTE      = L.icon({ iconUrl: ICON_AGENTE_URL,      iconSize:[ICON_SIZE,ICON_SIZE], iconAnchor:[ICON_ANCH,ICON_ANCH], popupAnchor:[0,POP_ANCH] });
 
-  // ✅ Íconos con fondo negro (para que NO se pierda el color pastel)
-  const ICON_ATM_OFICINA = makeBBVAPin(ICON_ATM_OFICINA_URL);
-  const ICON_ATM_ISLA    = makeBBVAPin(ICON_ATM_ISLA_URL);
-  const ICON_OFICINA     = makeBBVAPin(ICON_OFICINA_URL);
-  const ICON_AGENTE      = makeBBVAPin(ICON_AGENTE_URL);
-
-  function getIcon(pt){
-    const ubic = (pt.ubicacion || "").toUpperCase();
-    if (TIPO_MAPA === "agentes")  return ICON_AGENTE;
-    if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
-    if (TIPO_MAPA === "islas"){
-      if (ubic.includes("OFICINA")) return ICON_ATM_OFICINA;
+    function getIcon(pt){
+      const ubic = (pt.ubicacion || "").toUpperCase();
+      if (TIPO_MAPA === "agentes") return ICON_AGENTE;
+      if (TIPO_MAPA === "oficinas") return ICON_OFICINA;
+      if (TIPO_MAPA === "islas"){
+        if (ubic.includes("OFICINA")) return ICON_ATM_OFICINA;
+        if (ubic.includes("ISLA")) return ICON_ATM_ISLA;
+        return ICON_ATM_ISLA;
+      }
       return ICON_ATM_ISLA;
     }
-    // integral: se decide por tipo_canal abajo
-    return ICON_ATM_ISLA;
-  }
 
-  const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
+    const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
 
-  const markers = L.markerClusterGroup({chunkedLoading:true});
-  const heat = L.heatLayer([], {radius:28, blur:22});
-  const markersReco = L.layerGroup();
-  const heatClientes = L.heatLayer([], { radius: 7, blur: 6, maxZoom: 18, minOpacity: 0.04 });
+    const markers = L.markerClusterGroup({chunkedLoading:true});
+    const heat = L.heatLayer([], {radius:28, blur:22});
+    const markersReco = L.layerGroup();
+    const heatClientes = L.heatLayer([], { radius: 7, blur: 6, maxZoom: 18, minOpacity: 0.04 });
 
-  markers.addTo(map);
-  heat.addTo(map);
+    markers.addTo(map);
+    heat.addTo(map);
 
-  const selDep = document.getElementById("selDepartamento");
-  const selProv = document.getElementById("selProvincia");
-  const selDist = document.getElementById("selDistrito");
-  const selDiv = document.getElementById("selDivision");
-  const chkHeat = document.getElementById("chkHeat");
-  const chkHeatClientes = document.getElementById("chkHeatClientes");
-  const panelClientes = document.getElementById("panelClientes");
-  const infoBox = document.getElementById("infoCount");
-  const selTipoATM = document.getElementById("selTipoATM");
-  const selUbicATM = document.getElementById("selUbicacionATM");
-  const selSegmento = document.getElementById("selSegmento");
-  const chkReco = document.getElementById("chkReco");
+    const selDep = document.getElementById("selDepartamento");
+    const selProv = document.getElementById("selProvincia");
+    const selDist = document.getElementById("selDistrito");
+    const selDiv = document.getElementById("selDivision");
+    const chkHeat = document.getElementById("chkHeat");
+    const chkHeatClientes = document.getElementById("chkHeatClientes");
+    const panelClientes = document.getElementById("panelClientes");
+    const infoBox = document.getElementById("infoCount");
+    const selTipoATM = document.getElementById("selTipoATM");
+    const selUbicATM = document.getElementById("selUbicacionATM");
+    const selSegmento = document.getElementById("selSegmento");
+    const chkReco = document.getElementById("chkReco");
 
-  const fmt2 = (v)=> (Number(v||0)).toFixed(2);
-  const fmt0 = (v)=> String(Math.round(Number(v||0)));
-  const fmtPct = (v)=> `${(Number(v||0)).toFixed(2)}%`;
+    // ---- NUEVO: helpers de formato ----
+    const fmt2 = (v)=> (Number(v||0)).toFixed(2);
+    const fmt0 = (v)=> String(Math.round(Number(v||0)));
+    const fmtPct = (v)=> `${(Number(v||0)).toFixed(2)}%`;
 
-  // ======================================================
-  // ✅ BORDE NEÓN POR DIVISIÓN (se mantiene)
-  // ======================================================
-  let divisionBorderLayer = null;
-
-  function clearDivisionBorder(){
-    if(divisionBorderLayer){
-      try { map.removeLayer(divisionBorderLayer); } catch(e){}
-      divisionBorderLayer = null;
+    // ======================================================
+    // ✅ BORDE NEÓN POR DIVISIÓN (se mantiene)
+    // ======================================================
+    let divisionBorderLayer = null;
+    function clearDivisionBorder(){
+      if(divisionBorderLayer){
+        try { map.removeLayer(divisionBorderLayer); } catch(e){}
+        divisionBorderLayer = null;
+      }
     }
-  }
-
-  function convexHullLatLng(latlngs){
-    if(!latlngs || latlngs.length <= 2) return latlngs || [];
-    const uniq = new Map();
-    latlngs.forEach(ll=>{
-      const k = ll.lat.toFixed(6) + "," + ll.lng.toFixed(6);
-      uniq.set(k, ll);
-    });
-    const pts = Array.from(uniq.values()).map(ll => ({x: ll.lng, y: ll.lat}));
-    if(pts.length <= 2) return pts.map(p => L.latLng(p.y, p.x));
-
-    pts.sort((a,b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
-    const cross = (o,a,b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
-
-    const lower = [];
-    for(const p of pts){
-      while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
-      lower.push(p);
-    }
-    const upper = [];
-    for(let i=pts.length-1; i>=0; i--){
-      const p = pts[i];
-      while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
-      upper.push(p);
-    }
-    upper.pop(); lower.pop();
-    const hull = lower.concat(upper);
-    return hull.map(p => L.latLng(p.y, p.x));
-  }
-
-  function rectFromLatLngs(latlngs){
-    const b = L.latLngBounds(latlngs);
-    const sw = b.getSouthWest();
-    const ne = b.getNorthEast();
-    return [ sw, L.latLng(sw.lat, ne.lng), ne, L.latLng(ne.lat, sw.lng) ];
-  }
-
-  function drawDivisionBorder(latlngs){
-    clearDivisionBorder();
-    if(!latlngs || latlngs.length === 0) return;
-
-    const glow = L.polygon(latlngs, {
-      color: "#1E6CFF", weight: 18, opacity: 0.22, fill: false,
-      lineCap: "round", lineJoin: "round", interactive: false, className: "division-neon"
-    });
-    const main = L.polygon(latlngs, {
-      color: "#1E6CFF", weight: 9, opacity: 0.98, fill: false,
-      lineCap: "round", lineJoin: "round", interactive: false, className: "division-neon"
-    });
-    divisionBorderLayer = L.layerGroup([glow, main]).addTo(map);
-    try { glow.bringToFront(); main.bringToFront(); } catch(e){}
-  }
-
-  function updateDivisionBorderFromPoints(latlngs){
-    const dv = (selDiv && selDiv.value) ? String(selDiv.value).trim() : "";
-    if(!dv){ clearDivisionBorder(); return; }
-    if(!latlngs || latlngs.length === 0){ clearDivisionBorder(); return; }
-
-    let outline = [];
-    if(latlngs.length < 3){
-      outline = rectFromLatLngs(latlngs);
-    }else{
-      outline = convexHullLatLng(latlngs);
-      if(!outline || outline.length < 3) outline = rectFromLatLngs(latlngs);
-    }
-    drawDivisionBorder(outline);
-  }
-
-  // ======================================================
-  // COMBOS DEP/PROV/DIST/DIV
-  // ======================================================
-  function updateProvincias(){
-    const d = selDep.value;
-    selProv.innerHTML = '<option value="">-- Todas --</option>';
-    if(d && PROV_BY_DEPT[d]){
-      PROV_BY_DEPT[d].forEach(p => {
-        selProv.innerHTML += `<option value="${p}">${p}</option>`;
+    function convexHullLatLng(latlngs){
+      if(!latlngs || latlngs.length <= 2) return latlngs || [];
+      const uniq = new Map();
+      latlngs.forEach(ll=>{
+        const k = ll.lat.toFixed(6) + "," + ll.lng.toFixed(6);
+        uniq.set(k, ll);
       });
+      const pts = Array.from(uniq.values()).map(ll => ({x: ll.lng, y: ll.lat}));
+      if(pts.length <= 2) return pts.map(p => L.latLng(p.y, p.x));
+      pts.sort((a,b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
+      const cross = (o,a,b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
+      const lower = [];
+      for(const p of pts){
+        while(lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+        lower.push(p);
+      }
+      const upper = [];
+      for(let i=pts.length-1; i>=0; i--){
+        const p = pts[i];
+        while(upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+        upper.push(p);
+      }
+      upper.pop(); lower.pop();
+      const hull = lower.concat(upper);
+      return hull.map(p => L.latLng(p.y, p.x));
     }
-    updateDistritos();
-    updateDivisiones();
-  }
-
-  function updateDistritos(){
-    const p = selProv.value;
-    selDist.innerHTML = '<option value="">-- Todos --</option>';
-    if(p && DIST_BY_PROV[p]){
-      DIST_BY_PROV[p].forEach(d => {
-        selDist.innerHTML += `<option value="${d}">${d}</option>`;
+    function rectFromLatLngs(latlngs){
+      const b = L.latLngBounds(latlngs);
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      return [ sw, L.latLng(sw.lat, ne.lng), ne, L.latLng(ne.lat, sw.lng) ];
+    }
+    function drawDivisionBorder(latlngs){
+      clearDivisionBorder();
+      if(!latlngs || latlngs.length === 0) return;
+      const glow = L.polygon(latlngs, {
+        color: "#1E6CFF", weight: 18, opacity: 0.22, fill: false,
+        lineCap: "round", lineJoin: "round", interactive: false, className: "division-neon"
       });
+      const main = L.polygon(latlngs, {
+        color: "#1E6CFF", weight: 9, opacity: 0.98, fill: false,
+        lineCap: "round", lineJoin: "round", interactive: false, className: "division-neon"
+      });
+      divisionBorderLayer = L.layerGroup([glow, main]).addTo(map);
+      try { glow.bringToFront(); main.bringToFront(); } catch(e){}
     }
-    updateDivisiones();
-  }
-
-  function updateDivisiones(){
-    const d = selDep.value;
-    const p = selProv.value;
-    const di = selDist.value;
-
-    selDiv.innerHTML = '<option value="">-- Todas --</option>';
-
-    if(di && DIV_BY_DIST[di]){
-      DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-      return;
+    function updateDivisionBorderFromPoints(latlngs){
+      const dv = (selDiv && selDiv.value) ? String(selDiv.value).trim() : "";
+      if(!dv){ clearDivisionBorder(); return; }
+      if(!latlngs || latlngs.length === 0){ clearDivisionBorder(); return; }
+      let outline = [];
+      if(latlngs.length < 3){
+        outline = rectFromLatLngs(latlngs);
+      }else{
+        outline = convexHullLatLng(latlngs);
+        if(!outline || outline.length < 3){
+          outline = rectFromLatLngs(latlngs);
+        }
+      }
+      drawDivisionBorder(outline);
     }
-    if(p && DIV_BY_PROV[p]){
-      DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-      return;
+
+    // ======================================================
+    // COMBOS DEP/PROV/DIST/DIV
+    // ======================================================
+    function updateProvincias(){
+      const d = selDep.value;
+      selProv.innerHTML = '<option value="">-- Todas --</option>';
+      if(d && PROV_BY_DEPT[d]){
+        PROV_BY_DEPT[d].forEach(p => {
+          selProv.innerHTML += `<option value="${p}">${p}</option>`;
+        });
+      }
+      updateDistritos();
+      updateDivisiones();
     }
-    if(d && DIV_BY_DEPT[d]){
-      DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-      return;
+    function updateDistritos(){
+      const p = selProv.value;
+      selDist.innerHTML = '<option value="">-- Todos --</option>';
+      if(p && DIST_BY_PROV[p]){
+        DIST_BY_PROV[p].forEach(d => {
+          selDist.innerHTML += `<option value="${d}">${d}</option>`;
+        });
+      }
+      updateDivisiones();
     }
-    ALL_DIVS.forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
-  }
+    function updateDivisiones(){
+      const d = selDep.value;
+      const p = selProv.value;
+      const di = selDist.value;
+      selDiv.innerHTML = '<option value="">-- Todas --</option>';
 
-  // ======================================================
-  // PANEL DETALLE
-  // ======================================================
-  const panelATM = document.getElementById("panelATM");
-  const atmDetalle = document.getElementById("atmDetalle");
-  const btnVolver = document.getElementById("btnVolver");
-  const panelReco = document.getElementById("panelReco");
-  const recoDetalle = document.getElementById("recoDetalle");
-  const btnRecoVolver = document.getElementById("btnRecoVolver");
+      if(di && DIV_BY_DIST[di]){
+        DIV_BY_DIST[di].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        return;
+      }
+      if(p && DIV_BY_PROV[p]){
+        DIV_BY_PROV[p].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        return;
+      }
+      if(d && DIV_BY_DEPT[d]){
+        DIV_BY_DEPT[d].forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+        return;
+      }
+      ({{ divisiones|tojson }}).forEach(v => selDiv.innerHTML += `<option value="${v}">${v}</option>`);
+    }
 
-  const panelATMResumen = document.getElementById("panelATMResumen");
-  const panelOfiResumen = document.getElementById("panelOfiResumen");
-  const panelAgResumen = document.getElementById("panelAgResumen");
+    // ======================================================
+    // PANEL DETALLE (se mantiene)
+    // ======================================================
+    const panelATM = document.getElementById("panelATM");
+    const atmDetalle = document.getElementById("atmDetalle");
+    const btnVolver = document.getElementById("btnVolver");
 
-  function hideResumenPanels(){
-    if(panelATMResumen) panelATMResumen.classList.add("hidden");
-    if(panelOfiResumen) panelOfiResumen.classList.add("hidden");
-    if(panelAgResumen) panelAgResumen.classList.add("hidden");
-  }
+    const panelReco = document.getElementById("panelReco");
+    const recoDetalle = document.getElementById("recoDetalle");
+    const btnRecoVolver = document.getElementById("btnRecoVolver");
 
-  function syncSinglePanelsVisibility(){
-    if(TIPO_MAPA === "integral"){ syncIntegralPanelsVisibility(); return; }
-    if(panelATMResumen) panelATMResumen.classList.toggle("hidden", TIPO_MAPA !== "islas");
-    if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", TIPO_MAPA !== "oficinas");
-    if(panelAgResumen)  panelAgResumen.classList.toggle("hidden", TIPO_MAPA !== "agentes");
-  }
+    const panelATMResumen = document.getElementById("panelATMResumen");
+    const panelOfiResumen = document.getElementById("panelOfiResumen");
+    const panelAgResumen = document.getElementById("panelAgResumen");
 
-  function showResumenPanels(){
-    if(TIPO_MAPA === "integral"){ syncIntegralPanelsVisibility(); }
-    else { syncSinglePanelsVisibility(); }
-  }
+    function hideResumenPanels(){
+      if(panelATMResumen) panelATMResumen.classList.add("hidden");
+      if(panelOfiResumen) panelOfiResumen.classList.add("hidden");
+      if(panelAgResumen) panelAgResumen.classList.add("hidden");
+    }
 
-  function showRecoPanel(r){
-    if (!r) return;
-    const txt = `___________ RECOMENDACIÓN ___________
+    function syncSinglePanelsVisibility(){
+      if(TIPO_MAPA === "integral"){ syncIntegralPanelsVisibility(); return; }
+      if(panelATMResumen) panelATMResumen.classList.toggle("hidden", TIPO_MAPA !== "islas");
+      if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", TIPO_MAPA !== "oficinas");
+      if(panelAgResumen) panelAgResumen.classList.toggle("hidden", TIPO_MAPA !== "agentes");
+    }
+
+    function showResumenPanels(){
+      if(TIPO_MAPA === "integral"){ syncIntegralPanelsVisibility(); }
+      else { syncSinglePanelsVisibility(); }
+    }
+
+    function showRecoPanel(r){
+      if (!r) return;
+      const txt =
+`___________ RECOMENDACIÓN ___________
 Canal sugerido: ${String(r.canal||"").toUpperCase()}
 Clientes afectados: ${r.clientes_afectados}
 Departamento: ${r.departamento}
@@ -1630,24 +1546,24 @@ Edad promedio: ${Number(r.edad_prom||0).toFixed(1)}
 Ingreso promedio: S/ ${Number(r.ingreso_prom||0).toFixed(2)}
 % Digitales: ${(Number(r.pct_digital||0) * 100).toFixed(1)}%
 Perfil dominante: ${r.perfil_top}
-Diagnóstico: ${String(r.diagnostico||"").replace(/\[|\]|'/g,"")}
+Diagnóstico: ${String(r.diagnostico||"").replace(/\\[|\\]|'/g,"")}
 Coordenadas: lat: ${r.lat} lon: ${r.lon}
 _____________________________________`;
-    recoDetalle.textContent = txt;
-    hideResumenPanels();
-    panelATM.classList.add("hidden");
-    panelReco.classList.remove("hidden");
-    panelReco.classList.add("glow");
-  }
+      recoDetalle.textContent = txt;
+      hideResumenPanels();
+      panelATM.classList.add("hidden");
+      panelReco.classList.remove("hidden");
+      panelReco.classList.add("glow");
+    }
 
-  function showATMPanel(pt){
-    const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
-    let texto = "";
-
-    if(TIPO_MAPA === "integral"){
-      const canal = (pt.tipo_canal || "").toUpperCase();
-      if(canal === "AGENTE"){
-        texto = `_____________________ AGENTE ${pt.atm} _____________________
+    function showATMPanel(pt){
+      const lineaUbic = `${pt.departamento} / ${pt.provincia} / ${pt.distrito}`;
+      let texto = "";
+      if(TIPO_MAPA === "integral"){
+        const canal = (pt.tipo_canal || "").toUpperCase();
+        if(canal === "AGENTE"){
+          texto =
+`_____________________ AGENTE ${pt.atm} _____________________
 • Comercio: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
@@ -1658,15 +1574,17 @@ _____________________________________`;
 • Trxs Octubre: ${pt.trxs_oct ?? 0}
 • Trxs Noviembre: ${pt.trxs_nov ?? 0}
 _____________________ Promedio: ${pt.promedio} _____________________`;
-      } else if(canal === "OFICINA"){
-        texto = `_____________________ OFICINA ${pt.atm} _____________________
+        } else if(canal === "OFICINA"){
+          texto =
+`_____________________ OFICINA ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
 • Ubicación Geográfica: ${lineaUbic}
 _____________________ Promedio TRX: ${pt.promedio} _____________________`;
-      } else {
-        texto = `_____________________ ATM ${pt.atm} _____________________
+        } else {
+          texto =
+`_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
@@ -1674,9 +1592,10 @@ _____________________ Promedio TRX: ${pt.promedio} _____________________`;
 • Ubicación: ${pt.ubicacion}
 • Ubicación Geográfica: ${lineaUbic}
 _____________________ Promedio: ${pt.promedio} _____________________`;
-      }
-    } else if(TIPO_MAPA === "agentes"){
-      texto = `_____________________ AGENTE ${pt.atm} _____________________
+        }
+      } else if(TIPO_MAPA === "agentes"){
+        texto =
+`_____________________ AGENTE ${pt.atm} _____________________
 • Comercio: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
@@ -1687,15 +1606,17 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 • Trxs Octubre: ${pt.trxs_oct ?? 0}
 • Trxs Noviembre: ${pt.trxs_nov ?? 0}
 _____________________ Promedio: ${pt.promedio} _____________________`;
-    } else if(TIPO_MAPA === "oficinas"){
-      texto = `_____________________ OFICINA ${pt.atm} _____________________
+      } else if(TIPO_MAPA === "oficinas"){
+        texto =
+`_____________________ OFICINA ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
 • Ubicación Geográfica: ${lineaUbic}
 _____________________ Promedio TRX: ${pt.promedio} _____________________`;
-    } else {
-      texto = `_____________________ ATM ${pt.atm} _____________________
+      } else {
+        texto =
+`_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
@@ -1703,426 +1624,428 @@ _____________________ Promedio TRX: ${pt.promedio} _____________________`;
 • Ubicación: ${pt.ubicacion}
 • Ubicación Geográfica: ${lineaUbic}
 _____________________ Promedio: ${pt.promedio} _____________________`;
-    }
-
-    atmDetalle.textContent = texto;
-    hideResumenPanels();
-    panelATM.classList.remove("hidden");
-    panelATM.classList.add("glow");
-  }
-
-  btnVolver.addEventListener("click", () => {
-    panelATM.classList.add("hidden");
-    panelATM.classList.remove("glow");
-    showResumenPanels();
-  });
-  btnRecoVolver.onclick = () => {
-    panelReco.classList.add("hidden");
-    panelReco.classList.remove("glow");
-    showResumenPanels();
-  };
-
-  // ======================================================
-  // CLIENTES
-  // ======================================================
-  async function fetchClientes(){
-    try {
-      const zoom = map.getZoom();
-      const d = selDep.value, p = selProv.value, di = selDist.value, seg = selSegmento.value;
-      const qs = `zoom=${zoom}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&segmento=${encodeURIComponent(seg)}`;
-      const res = await fetch(`/api/clientes?${qs}`);
-      const data = await res.json();
-      heatClientes.setLatLngs(data.map(c => [c.lat, c.lon, 1]));
-      if (!map.hasLayer(heatClientes)) map.addLayer(heatClientes);
-    } catch (err){
-      console.error("Error cargando clientes:", err);
-    }
-  }
-
-  async function fetchResumenClientes(){
-    const d = selDep.value, p = selProv.value, di = selDist.value, seg = selSegmento.value;
-    const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&segmento=${encodeURIComponent(seg)}`;
-    const res = await fetch(`/api/resumen_clientes?${qs}`);
-    const js = await res.json();
-    document.getElementById("cliTotal").textContent = js.total;
-    document.getElementById("cliDigital").textContent = js.digital_pct + "%";
-    document.getElementById("cliEdad").textContent = js.edad_prom;
-    document.getElementById("cliIngreso").textContent = js.ingreso_prom;
-    document.getElementById("cliDeuda").textContent = js.deuda_prom;
-    document.getElementById("cliTopSeg").textContent = js.top_segmento;
-  }
-
-  async function cargarRecomendaciones(){
-    try {
-      const res = await fetch("/api/recomendaciones");
-      const data = await res.json();
-      markersReco.clearLayers();
-      data.forEach(r => {
-        const m = L.marker([r.lat, r.lon], {
-          icon: L.divIcon({ className: "icon-reco", html: "⚡", iconSize: [24, 24], iconAnchor: [12, 12] })
-        });
-        m.on("click", () => showRecoPanel(r));
-        markersReco.addLayer(m);
-      });
-      if (chkReco.checked){
-        markersReco.addTo(map);
       }
-    } catch(err){
-      console.error("Error cargando recomendaciones:", err);
+
+      atmDetalle.textContent = texto;
+      hideResumenPanels();
+      panelATM.classList.remove("hidden");
+      panelATM.classList.add("glow");
     }
-  }
 
-  // ======================================================
-  // CAPAS NORMALES (NO integral)
-  // ======================================================
-  async function fetchPoints(){
-    if(TIPO_MAPA === "integral") return;
-
-    const d = selDep.value, p = selProv.value, di = selDist.value, dv = selDiv.value;
-    const t_atm = selTipoATM ? selTipoATM.value : "";
-    const u_atm = selUbicATM ? selUbicATM.value : "";
-
-    const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}&tipo_atm=${encodeURIComponent(t_atm)}&ubic_atm=${encodeURIComponent(u_atm)}`;
-
-    infoBox.textContent = "...";
-    panelATM.classList.add("hidden");
-
-    const res = await fetch(`/api/points?${qs}`);
-    const data = await res.json();
-    const pts = data.puntos || [];
-
-    infoBox.textContent = data.total_atms ?? pts.length;
-
-    markers.clearLayers();
-    heat.setLatLngs([]);
-
-    let heatPts = [];
-    let bounds = [];
-
-    pts.forEach(pt => {
-      const icon = getIcon(pt);
-      const m = L.marker([pt.lat, pt.lon], {icon});
-      m.on("click", () => showATMPanel(pt));
-      markers.addLayer(m);
-
-      heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
-      bounds.push([pt.lat, pt.lon]);
+    btnVolver.addEventListener("click", () => {
+      panelATM.classList.add("hidden");
+      panelATM.classList.remove("glow");
+      showResumenPanels();
     });
 
-    heat.setLatLngs(heatPts);
+    btnRecoVolver.onclick = () => {
+      panelReco.classList.add("hidden");
+      panelReco.classList.remove("glow");
+      showResumenPanels();
+    };
 
-    if(bounds.length === 1) map.setView(bounds[0], 16);
-    else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
-    else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
-
-    if(chkHeat.checked){
-      if(!map.hasLayer(heat)) heat.addTo(map);
-    }else{
-      if(map.hasLayer(heat)) map.removeLayer(heat);
+    // ======================================================
+    // CLIENTES
+    // ======================================================
+    async function fetchClientes(){
+      try {
+        const zoom = map.getZoom();
+        const d = selDep.value, p = selProv.value, di = selDist.value, seg = selSegmento.value;
+        const qs = `zoom=${zoom}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&segmento=${encodeURIComponent(seg)}`;
+        const res = await fetch(`/api/clientes?${qs}`);
+        const data = await res.json();
+        heatClientes.setLatLngs(data.map(c => [c.lat, c.lon, 1]));
+        if (!map.hasLayer(heatClientes)) map.addLayer(heatClientes);
+      } catch (err){
+        console.error("Error cargando clientes:", err);
+      }
     }
 
-    updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
-
-    // --- Paneles ---
-    if(TIPO_MAPA === "islas"){
-      document.getElementById("resAtmTotal").textContent = data.total_atms || 0;
-      document.getElementById("resAtmSuma").textContent = Math.round(data.suma_total || 0);
-      document.getElementById("resAtmEnOfi").textContent = data.total_oficinas || 0;
-      document.getElementById("resAtmEnIsla").textContent = data.total_islas || 0;
-      document.getElementById("resAtmDisp").textContent = data.total_disp || 0;
-      document.getElementById("resAtmMon").textContent = data.total_mon || 0;
-      document.getElementById("resAtmRec").textContent = data.total_rec || 0;
-    }
-    if(TIPO_MAPA === "oficinas"){
-      document.getElementById("resOfiTotal").textContent = data.total_oficinas || 0;
-      document.getElementById("resOfiSuma").textContent = Math.round(data.suma_total || 0);
-
-      document.getElementById("resOfiPromEAS").textContent = fmt2(data.prom_estructura_as);
-      document.getElementById("resOfiPromEBP").textContent = fmt2(data.prom_estructura_ebp);
-      document.getElementById("resOfiPromEAD").textContent = fmt2(data.prom_estructura_ad);
-      document.getElementById("resOfiPromCLI").textContent = fmt0(data.prom_clientes_unicos);
-      document.getElementById("resOfiPromTKT").textContent = fmt0(data.prom_total_tickets);
-      document.getElementById("resOfiPromRED").textContent = fmtPct(data.prom_redlines);
-    }
-    if(TIPO_MAPA === "agentes"){
-      document.getElementById("resAgTotal").textContent = data.total_agentes || 0;
-      document.getElementById("resAgSuma").textContent = Math.round(data.suma_total || 0);
-      document.getElementById("resAgA1").textContent = data.total_capa_A1 || 0;
-      document.getElementById("resAgA2").textContent = data.total_capa_A2 || 0;
-      document.getElementById("resAgA3").textContent = data.total_capa_A3 || 0;
-      document.getElementById("resAgB").textContent = data.total_capa_B || 0;
-      document.getElementById("resAgC").textContent = data.total_capa_C || 0;
+    async function fetchResumenClientes(){
+      const d = selDep.value, p = selProv.value, di = selDist.value, seg = selSegmento.value;
+      const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&segmento=${encodeURIComponent(seg)}`;
+      const res = await fetch(`/api/resumen_clientes?${qs}`);
+      const js = await res.json();
+      document.getElementById("cliTotal").textContent = js.total;
+      document.getElementById("cliDigital").textContent = js.digital_pct + "%";
+      document.getElementById("cliEdad").textContent = js.edad_prom;
+      document.getElementById("cliIngreso").textContent = js.ingreso_prom;
+      document.getElementById("cliDeuda").textContent = js.deuda_prom;
+      document.getElementById("cliTopSeg").textContent = js.top_segmento;
     }
 
-    syncSinglePanelsVisibility();
-
-    if (chkReco.checked){
-      cargarRecomendaciones();
-      if (!map.hasLayer(markersReco)) markersReco.addTo(map);
-    } else {
-      if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
+    async function cargarRecomendaciones(){
+      try {
+        const res = await fetch("/api/recomendaciones");
+        const data = await res.json();
+        markersReco.clearLayers();
+        data.forEach(r => {
+          const m = L.marker([r.lat, r.lon], {
+            icon: L.divIcon({ className: "icon-reco", html: "⚡", iconSize: [36, 36], iconAnchor: [18, 18] }),
+            zIndexOffset: 2000
+          });
+          m.on("click", () => showRecoPanel(r));
+          markersReco.addLayer(m);
+        });
+        if (chkReco.checked){
+          markersReco.addTo(map);
+        }
+      } catch(err){
+        console.error("Error cargando recomendaciones:", err);
+      }
     }
-  }
 
-  // ======================================================
-  // INTEGRAL
-  // ======================================================
-  const chkATMs = document.getElementById("chkShowATMs");
-  const chkOficinas = document.getElementById("chkShowOficinas");
-  const chkAgentes = document.getElementById("chkShowAgentes");
+    // ======================================================
+    // CAPAS NORMALES (NO integral)
+    // ======================================================
+    async function fetchPoints(){
+      if(TIPO_MAPA === "integral") return;
 
-  function syncIntegralPanelsVisibility(){
-    if(TIPO_MAPA !== "integral") return;
-    if(panelATMResumen) panelATMResumen.classList.toggle("hidden", !(chkATMs && chkATMs.checked));
-    if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", !(chkOficinas && chkOficinas.checked));
-    if(panelAgResumen)  panelAgResumen.classList.toggle("hidden", !(chkAgentes && chkAgentes.checked));
-  }
+      const d = selDep.value, p = selProv.value, di = selDist.value, dv = selDiv.value;
+      const t_atm = selTipoATM ? selTipoATM.value : "";
+      const u_atm = selUbicATM ? selUbicATM.value : "";
 
-  async function fetchIntegral(){
-    if(TIPO_MAPA !== "integral") return;
+      const qs = `tipo=${TIPO_MAPA}&departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}&tipo_atm=${encodeURIComponent(t_atm)}&ubic_atm=${encodeURIComponent(u_atm)}`;
 
-    const d = selDep.value, p = selProv.value, di = selDist.value, dv = selDiv.value;
-    const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
+      infoBox.textContent = "...";
+      panelATM.classList.add("hidden");
 
-    infoBox.textContent = "...";
-    panelATM.classList.add("hidden");
+      const res = await fetch(`/api/points?${qs}`);
+      const data = await res.json();
+      const pts = data.puntos || [];
 
-    const res = await fetch(`/api/points_integral?${qs}`);
-    const data = await res.json();
+      infoBox.textContent = data.total_atms ?? pts.length;
 
-    markers.clearLayers();
-    heat.setLatLngs([]);
+      markers.clearLayers();
+      heat.setLatLngs([]);
 
-    let bounds = [];
-    let heatPts = [];
+      let heatPts = [];
+      let bounds = [];
 
-    const showATMs = !chkATMs || chkATMs.checked;
-    const showOfi  = !chkOficinas || chkOficinas.checked;
-    const showAg   = !chkAgentes || chkAgentes.checked;
-
-    if(showATMs){
-      (data.atms || []).forEach(pt=>{
-        const ubic = (pt.ubicacion || "").toUpperCase();
-        const icon = ubic.includes("OFICINA") ? ICON_ATM_OFICINA : ICON_ATM_ISLA;
-        const m = L.marker([pt.lat, pt.lon], {icon});
-        m.on("click",()=>showATMPanel(pt));
+      pts.forEach(pt => {
+        const icon = getIcon(pt);
+        const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1200});  // ✅ ayuda a que no “se pierda”
+        m.on("click", () => showATMPanel(pt));
         markers.addLayer(m);
-
         heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
         bounds.push([pt.lat, pt.lon]);
       });
-    }
-    if(showOfi){
-      (data.oficinas || []).forEach(pt=>{
-        const m = L.marker([pt.lat, pt.lon], {icon: ICON_OFICINA});
-        m.on("click",()=>showATMPanel(pt));
-        markers.addLayer(m);
-        bounds.push([pt.lat, pt.lon]);
-      });
-    }
-    if(showAg){
-      (data.agentes || []).forEach(pt=>{
-        const m = L.marker([pt.lat, pt.lon], {icon: ICON_AGENTE});
-        m.on("click",()=>showATMPanel(pt));
-        markers.addLayer(m);
-        bounds.push([pt.lat, pt.lon]);
-      });
-    }
 
-    heat.setLatLngs(heatPts);
+      heat.setLatLngs(heatPts);
 
-    if(bounds.length === 1) map.setView(bounds[0], 16);
-    else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
-    else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
+      if(bounds.length === 1) map.setView(bounds[0], 16);
+      else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
+      else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
 
-    if(chkHeat.checked){
-      if(!map.hasLayer(heat)) heat.addTo(map);
-    }else{
-      if(map.hasLayer(heat)) map.removeLayer(heat);
-    }
-
-    updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
-
-    // --- Panel ATMs ---
-    let atm_total = (data.total_atms || 0);
-    let atm_suma = (data.suma_atms || 0);
-    let atm_ofi=0, atm_isla=0, atm_disp=0, atm_mon=0, atm_rec=0;
-
-    (data.atms || []).forEach(pt=>{
-      const u = (pt.ubicacion || "").toUpperCase();
-      const t = (pt.tipo || "").toUpperCase();
-      if(u.includes("OFICINA")) atm_ofi++; else atm_isla++;
-      if(t.includes("DISPENSADOR")) atm_disp++;
-      if(t.includes("MONEDERO")) atm_mon++;
-      if(t.includes("RECICLADOR")) atm_rec++;
-    });
-
-    document.getElementById("resAtmTotal").textContent = showATMs ? atm_total : 0;
-    document.getElementById("resAtmSuma").textContent = showATMs ? Math.round(atm_suma) : 0;
-    document.getElementById("resAtmEnOfi").textContent = showATMs ? atm_ofi : 0;
-    document.getElementById("resAtmEnIsla").textContent= showATMs ? atm_isla : 0;
-    document.getElementById("resAtmDisp").textContent = showATMs ? atm_disp : 0;
-    document.getElementById("resAtmMon").textContent  = showATMs ? atm_mon : 0;
-    document.getElementById("resAtmRec").textContent  = showATMs ? atm_rec : 0;
-
-    // --- Panel Oficinas ---
-    const ofi_total = (data.total_oficinas || 0);
-    const ofi_suma = (data.suma_oficinas || 0);
-
-    document.getElementById("resOfiTotal").textContent = showOfi ? ofi_total : 0;
-    document.getElementById("resOfiSuma").textContent  = showOfi ? Math.round(ofi_suma) : 0;
-
-    document.getElementById("resOfiPromEAS").textContent = showOfi ? fmt2(data.prom_ofi_estructura_as) : "0.00";
-    document.getElementById("resOfiPromEBP").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ebp) : "0.00";
-    document.getElementById("resOfiPromEAD").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ad) : "0.00";
-    document.getElementById("resOfiPromCLI").textContent = showOfi ? fmt0(data.prom_ofi_clientes_unicos) : "0";
-    document.getElementById("resOfiPromTKT").textContent = showOfi ? fmt0(data.prom_ofi_total_tickets) : "0";
-    document.getElementById("resOfiPromRED").textContent = showOfi ? fmtPct(data.prom_ofi_redlines) : "0%";
-
-    // --- Panel Agentes ---
-    const ag_total = (data.total_agentes || 0);
-    const ag_suma  = (data.suma_agentes || 0);
-
-    let a1=0,a2=0,a3=0,b=0,c=0;
-    (data.agentes || []).forEach(pt=>{
-      const capa = (pt.capa || "").toUpperCase().trim();
-      if(capa === "A1") a1++;
-      else if(capa === "A2") a2++;
-      else if(capa === "A3") a3++;
-      else if(capa === "B") b++;
-      else if(capa === "C") c++;
-    });
-
-    document.getElementById("resAgTotal").textContent = showAg ? ag_total : 0;
-    document.getElementById("resAgSuma").textContent  = showAg ? Math.round(ag_suma) : 0;
-    document.getElementById("resAgA1").textContent    = showAg ? a1 : 0;
-    document.getElementById("resAgA2").textContent    = showAg ? a2 : 0;
-    document.getElementById("resAgA3").textContent    = showAg ? a3 : 0;
-    document.getElementById("resAgB").textContent     = showAg ? b : 0;
-    document.getElementById("resAgC").textContent     = showAg ? c : 0;
-
-    const visibleCount = (showATMs ? atm_total : 0) + (showOfi ? ofi_total : 0) + (showAg ? ag_total : 0);
-    infoBox.textContent = visibleCount;
-
-    syncIntegralPanelsVisibility();
-  }
-
-  // ======================================================
-  // EVENTOS
-  // ======================================================
-  if(TIPO_MAPA === "integral"){
-    selDep.onchange = ()=>{ updateProvincias(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selProv.onchange= ()=>{ updateDistritos(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selDist.onchange= ()=>{ updateDivisiones(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selDiv.onchange = ()=> fetchIntegral();
-
-    selSegmento.onchange = ()=>{ if (chkHeatClientes.checked){ fetchClientes(); fetchResumenClientes(); } };
-
-    if(chkATMs) chkATMs.onchange = ()=> fetchIntegral();
-    if(chkOficinas) chkOficinas.onchange = ()=> fetchIntegral();
-    if(chkAgentes) chkAgentes.onchange = ()=> fetchIntegral();
-
-    chkHeat.onchange = ()=>{
-      if (chkHeat.checked){
-        chkHeatClientes.checked = false;
-        panelClientes.classList.add("hidden");
-        heatClientes.setLatLngs([]);
-        if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
-        fetchIntegral();
-      } else {
-        heat.setLatLngs([]);
-        if (map.hasLayer(heat)) map.removeLayer(heat);
-        if (chkHeatClientes.checked) fetchClientes();
+      if(chkHeat.checked){
+        if(!map.hasLayer(heat)) heat.addTo(map);
+      }else{
+        if(map.hasLayer(heat)) map.removeLayer(heat);
       }
-    };
 
-    chkReco.onchange = ()=>{
-      if (chkReco.checked){
-        cargarRecomendaciones();
-        if(!map.hasLayer(markersReco)) markersReco.addTo(map);
-      } else {
-        if(map.hasLayer(markersReco)) map.removeLayer(markersReco);
+      updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
+
+      // --- Actualización paneles ---
+      if(TIPO_MAPA === "islas"){
+        document.getElementById("resAtmTotal").textContent = data.total_atms || 0;
+        document.getElementById("resAtmSuma").textContent = Math.round(data.suma_total || 0);
+        document.getElementById("resAtmEnOfi").textContent = data.total_oficinas || 0;
+        document.getElementById("resAtmEnIsla").textContent = data.total_islas || 0;
+        document.getElementById("resAtmDisp").textContent = data.total_disp || 0;
+        document.getElementById("resAtmMon").textContent = data.total_mon || 0;
+        document.getElementById("resAtmRec").textContent = data.total_rec || 0;
       }
-    };
 
-    chkHeatClientes.onchange = ()=>{
-      if (chkHeatClientes.checked){
-        panelClientes.classList.remove("hidden");
-        fetchResumenClientes();
-        chkHeat.checked = false;
-        heat.setLatLngs([]);
-        if (map.hasLayer(heat)) map.removeLayer(heat);
-        fetchClientes();
-      } else {
-        panelClientes.classList.add("hidden");
-        heatClientes.setLatLngs([]);
-        if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+      if(TIPO_MAPA === "oficinas"){
+        document.getElementById("resOfiTotal").textContent = data.total_oficinas || 0;
+        document.getElementById("resOfiSuma").textContent = Math.round(data.suma_total || 0);
+
+        // ✅ NUEVO: promedios debajo de suma TRX
+        document.getElementById("resOfiPromEAS").textContent = fmt2(data.prom_estructura_as);
+        document.getElementById("resOfiPromEBP").textContent = fmt2(data.prom_estructura_ebp);
+        document.getElementById("resOfiPromEAD").textContent = fmt2(data.prom_estructura_ad);
+        document.getElementById("resOfiPromCLI").textContent = fmt0(data.prom_clientes_unicos);
+        document.getElementById("resOfiPromTKT").textContent = fmt0(data.prom_total_tickets);
+        document.getElementById("resOfiPromRED").textContent = fmtPct(data.prom_redlines);
       }
-    };
 
-  } else {
-
-    selDep.onchange = ()=>{ updateProvincias(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selProv.onchange= ()=>{ updateDistritos(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selDist.onchange= ()=>{ updateDivisiones(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
-    selDiv.onchange  = ()=> fetchPoints();
-
-    selSegmento.onchange = ()=>{ if (chkHeatClientes.checked){ fetchClientes(); fetchResumenClientes(); } };
-    if (selTipoATM) selTipoATM.onchange = ()=> fetchPoints();
-    if (selUbicATM) selUbicATM.onchange = ()=> fetchPoints();
-
-    chkHeat.onchange = ()=>{
-      if (chkHeat.checked){
-        chkHeatClientes.checked = false;
-        panelClientes.classList.add("hidden");
-        heatClientes.setLatLngs([]);
-        if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
-        fetchPoints();
-      } else {
-        heat.setLatLngs([]);
-        if (map.hasLayer(heat)) map.removeLayer(heat);
-        if (chkHeatClientes.checked) fetchClientes();
+      if(TIPO_MAPA === "agentes"){
+        document.getElementById("resAgTotal").textContent = data.total_agentes || 0;
+        document.getElementById("resAgSuma").textContent = Math.round(data.suma_total || 0);
+        document.getElementById("resAgA1").textContent = data.total_capa_A1 || 0;
+        document.getElementById("resAgA2").textContent = data.total_capa_A2 || 0;
+        document.getElementById("resAgA3").textContent = data.total_capa_A3 || 0;
+        document.getElementById("resAgB").textContent = data.total_capa_B || 0;
+        document.getElementById("resAgC").textContent = data.total_capa_C || 0;
       }
-    };
 
-    chkHeatClientes.onchange = ()=>{
-      if (chkHeatClientes.checked){
-        panelClientes.classList.remove("hidden");
-        fetchResumenClientes();
-        chkHeat.checked = false;
-        heat.setLatLngs([]);
-        if (map.hasLayer(heat)) map.removeLayer(heat);
-        fetchClientes();
-      } else {
-        panelClientes.classList.add("hidden");
-        heatClientes.setLatLngs([]);
-        if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
-      }
-    };
+      syncSinglePanelsVisibility();
 
-    chkReco.onchange = ()=>{
       if (chkReco.checked){
         cargarRecomendaciones();
         if (!map.hasLayer(markersReco)) markersReco.addTo(map);
       } else {
         if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
       }
-    };
-  }
+    }
 
-  // Inicializar
-  updateProvincias();
-  if(TIPO_MAPA === "integral"){
-    syncIntegralPanelsVisibility();
-    fetchIntegral();
-  } else {
-    syncSinglePanelsVisibility();
-    fetchPoints();
-  }
+    // ======================================================
+    // INTEGRAL
+    // ======================================================
+    const chkATMs = document.getElementById("chkShowATMs");
+    const chkOficinas = document.getElementById("chkShowOficinas");
+    const chkAgentes = document.getElementById("chkShowAgentes");
 
-  map.on("zoomend", ()=>{ if (chkHeatClientes.checked) fetchClientes(); });
-</script>
+    function syncIntegralPanelsVisibility(){
+      if(TIPO_MAPA !== "integral") return;
+      if(panelATMResumen) panelATMResumen.classList.toggle("hidden", !(chkATMs && chkATMs.checked));
+      if(panelOfiResumen) panelOfiResumen.classList.toggle("hidden", !(chkOficinas && chkOficinas.checked));
+      if(panelAgResumen)  panelAgResumen.classList.toggle("hidden", !(chkAgentes && chkAgentes.checked));
+    }
 
+    async function fetchIntegral(){
+      if(TIPO_MAPA !== "integral") return;
+
+      const d = selDep.value, p = selProv.value, di = selDist.value, dv = selDiv.value;
+      const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}&division=${encodeURIComponent(dv)}`;
+
+      infoBox.textContent = "...";
+      panelATM.classList.add("hidden");
+
+      const res = await fetch(`/api/points_integral?${qs}`);
+      const data = await res.json();
+
+      markers.clearLayers();
+      heat.setLatLngs([]);
+
+      let bounds = [];
+      let heatPts = [];
+
+      const showATMs = !chkATMs || chkATMs.checked;
+      const showOfi  = !chkOficinas || chkOficinas.checked;
+      const showAg   = !chkAgentes || chkAgentes.checked;
+
+      if(showATMs){
+        (data.atms || []).forEach(pt=>{
+          const ubic = (pt.ubicacion || "").toUpperCase();
+          const icon = ubic.includes("OFICINA") ? ICON_ATM_OFICINA : ICON_ATM_ISLA;
+          const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1100}); // ✅
+          m.on("click",()=>showATMPanel(pt));
+          markers.addLayer(m);
+          heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
+          bounds.push([pt.lat, pt.lon]);
+        });
+      }
+
+      if(showOfi){
+        (data.oficinas || []).forEach(pt=>{
+          const m = L.marker([pt.lat, pt.lon], {icon:ICON_OFICINA, zIndexOffset: 1400}); // ✅ oficinas arriba
+          m.on("click",()=>showATMPanel(pt));
+          markers.addLayer(m);
+          bounds.push([pt.lat, pt.lon]);
+        });
+      }
+
+      if(showAg){
+        (data.agentes || []).forEach(pt=>{
+          const m = L.marker([pt.lat, pt.lon], {icon:ICON_AGENTE, zIndexOffset: 1200}); // ✅
+          m.on("click",()=>showATMPanel(pt));
+          markers.addLayer(m);
+          bounds.push([pt.lat, pt.lon]);
+        });
+      }
+
+      heat.setLatLngs(heatPts);
+
+      if(bounds.length === 1) map.setView(bounds[0], 16);
+      else if(bounds.length > 1) map.fitBounds(bounds, {padding:[20,20]});
+      else map.setView(INITIAL_CENTER, INITIAL_ZOOM);
+
+      if(chkHeat.checked){
+        if(!map.hasLayer(heat)) heat.addTo(map);
+      }else{
+        if(map.hasLayer(heat)) map.removeLayer(heat);
+      }
+
+      updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
+
+      // --- Panel ATMs ---
+      let atm_total = (data.total_atms || 0);
+      let atm_suma  = (data.suma_atms || 0);
+      let atm_ofi=0, atm_isla=0, atm_disp=0, atm_mon=0, atm_rec=0;
+      (data.atms || []).forEach(pt=>{
+        const u = (pt.ubicacion || "").toUpperCase();
+        const t = (pt.tipo || "").toUpperCase();
+        if(u.includes("OFICINA")) atm_ofi++; else atm_isla++;
+        if(t.includes("DISPENSADOR")) atm_disp++;
+        if(t.includes("MONEDERO")) atm_mon++;
+        if(t.includes("RECICLADOR")) atm_rec++;
+      });
+
+      document.getElementById("resAtmTotal").textContent = showATMs ? atm_total : 0;
+      document.getElementById("resAtmSuma").textContent  = showATMs ? Math.round(atm_suma) : 0;
+      document.getElementById("resAtmEnOfi").textContent = showATMs ? atm_ofi : 0;
+      document.getElementById("resAtmEnIsla").textContent= showATMs ? atm_isla : 0;
+      document.getElementById("resAtmDisp").textContent  = showATMs ? atm_disp : 0;
+      document.getElementById("resAtmMon").textContent   = showATMs ? atm_mon : 0;
+      document.getElementById("resAtmRec").textContent   = showATMs ? atm_rec : 0;
+
+      // --- Panel Oficinas ---
+      const ofi_total = (data.total_oficinas || 0);
+      const ofi_suma  = (data.suma_oficinas || 0);
+
+      document.getElementById("resOfiTotal").textContent = showOfi ? ofi_total : 0;
+      document.getElementById("resOfiSuma").textContent  = showOfi ? Math.round(ofi_suma) : 0;
+
+      // ✅ NUEVO: promedios oficinas en integral
+      document.getElementById("resOfiPromEAS").textContent = showOfi ? fmt2(data.prom_ofi_estructura_as) : "0.00";
+      document.getElementById("resOfiPromEBP").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ebp) : "0.00";
+      document.getElementById("resOfiPromEAD").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ad) : "0.00";
+      document.getElementById("resOfiPromCLI").textContent = showOfi ? fmt0(data.prom_ofi_clientes_unicos) : "0";
+      document.getElementById("resOfiPromTKT").textContent = showOfi ? fmt0(data.prom_ofi_total_tickets) : "0";
+      document.getElementById("resOfiPromRED").textContent = showOfi ? fmtPct(data.prom_ofi_redlines) : "0%";
+
+      // --- Panel Agentes ---
+      const ag_total = (data.total_agentes || 0);
+      const ag_suma  = (data.suma_agentes || 0);
+
+      let a1=0,a2=0,a3=0,b=0,c=0;
+      (data.agentes || []).forEach(pt=>{
+        const capa = (pt.capa || "").toUpperCase().trim();
+        if(capa === "A1") a1++;
+        else if(capa === "A2") a2++;
+        else if(capa === "A3") a3++;
+        else if(capa === "B") b++;
+        else if(capa === "C") c++;
+      });
+
+      document.getElementById("resAgTotal").textContent = showAg ? ag_total : 0;
+      document.getElementById("resAgSuma").textContent  = showAg ? Math.round(ag_suma) : 0;
+      document.getElementById("resAgA1").textContent    = showAg ? a1 : 0;
+      document.getElementById("resAgA2").textContent    = showAg ? a2 : 0;
+      document.getElementById("resAgA3").textContent    = showAg ? a3 : 0;
+      document.getElementById("resAgB").textContent     = showAg ? b : 0;
+      document.getElementById("resAgC").textContent     = showAg ? c : 0;
+
+      const visibleCount = (showATMs ? atm_total : 0) + (showOfi ? ofi_total : 0) + (showAg ? ag_total : 0);
+      infoBox.textContent = visibleCount;
+
+      syncIntegralPanelsVisibility();
+    }
+
+    // ======================================================
+    // EVENTOS
+    // ======================================================
+    if(TIPO_MAPA === "integral"){
+      selDep.onchange = ()=>{ updateProvincias(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selProv.onchange= ()=>{ updateDistritos(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selDist.onchange= ()=>{ updateDivisiones(); fetchIntegral(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selDiv.onchange = ()=> fetchIntegral();
+      selSegmento.onchange = ()=>{ if (chkHeatClientes.checked){ fetchClientes(); fetchResumenClientes(); } };
+
+      if(chkATMs) chkATMs.onchange = ()=> fetchIntegral();
+      if(chkOficinas) chkOficinas.onchange = ()=> fetchIntegral();
+      if(chkAgentes) chkAgentes.onchange = ()=> fetchIntegral();
+
+      chkHeat.onchange = ()=>{
+        if (chkHeat.checked){
+          chkHeatClientes.checked = false;
+          panelClientes.classList.add("hidden");
+          heatClientes.setLatLngs([]);
+          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+          fetchIntegral();
+        } else {
+          heat.setLatLngs([]);
+          if (map.hasLayer(heat)) map.removeLayer(heat);
+          if (chkHeatClientes.checked) fetchClientes();
+        }
+      };
+
+      chkReco.onchange = ()=>{
+        if (chkReco.checked){
+          cargarRecomendaciones();
+          if(!map.hasLayer(markersReco)) markersReco.addTo(map);
+        } else {
+          if(map.hasLayer(markersReco)) map.removeLayer(markersReco);
+        }
+      };
+
+      chkHeatClientes.onchange = ()=>{
+        if (chkHeatClientes.checked){
+          panelClientes.classList.remove("hidden");
+          fetchResumenClientes();
+          chkHeat.checked = false;
+          heat.setLatLngs([]);
+          if (map.hasLayer(heat)) map.removeLayer(heat);
+          fetchClientes();
+        } else {
+          panelClientes.classList.add("hidden");
+          heatClientes.setLatLngs([]);
+          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+        }
+      };
+
+    } else {
+      selDep.onchange = ()=>{ updateProvincias(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selProv.onchange= ()=>{ updateDistritos(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selDist.onchange= ()=>{ updateDivisiones(); fetchPoints(); if (chkHeatClientes.checked) fetchResumenClientes(); };
+      selDiv.onchange = ()=> fetchPoints();
+      selSegmento.onchange = ()=>{ if (chkHeatClientes.checked){ fetchClientes(); fetchResumenClientes(); } };
+
+      if (selTipoATM) selTipoATM.onchange = ()=> fetchPoints();
+      if (selUbicATM) selUbicATM.onchange = ()=> fetchPoints();
+
+      chkHeat.onchange = ()=>{
+        if (chkHeat.checked){
+          chkHeatClientes.checked = false;
+          panelClientes.classList.add("hidden");
+          heatClientes.setLatLngs([]);
+          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+          fetchPoints();
+        } else {
+          heat.setLatLngs([]);
+          if (map.hasLayer(heat)) map.removeLayer(heat);
+          if (chkHeatClientes.checked) fetchClientes();
+        }
+      };
+
+      chkHeatClientes.onchange = ()=>{
+        if (chkHeatClientes.checked){
+          panelClientes.classList.remove("hidden");
+          fetchResumenClientes();
+          chkHeat.checked = false;
+          heat.setLatLngs([]);
+          if (map.hasLayer(heat)) map.removeLayer(heat);
+          fetchClientes();
+        } else {
+          panelClientes.classList.add("hidden");
+          heatClientes.setLatLngs([]);
+          if (map.hasLayer(heatClientes)) map.removeLayer(heatClientes);
+        }
+      };
+
+      chkReco.onchange = ()=>{
+        if (chkReco.checked){
+          cargarRecomendaciones();
+          if (!map.hasLayer(markersReco)) markersReco.addTo(map);
+        } else {
+          if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
+        }
+      };
+    }
+
+    // Inicializar
+    updateProvincias();
+    if(TIPO_MAPA === "integral"){
+      syncIntegralPanelsVisibility();
+      fetchIntegral();
+    } else {
+      syncSinglePanelsVisibility();
+      fetchPoints();
+    }
+
+    map.on("zoomend", ()=>{ if (chkHeatClientes.checked) fetchClientes(); });
+  </script>
 </body>
 </html>
 """
