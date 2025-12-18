@@ -745,6 +745,13 @@ def api_points():
                 "distrito": str(r.get(COLF_DIST, "")),
                 "direccion": "No disponible (a incorporar)",
                 "capa": "",
+                # ✅ NUEVOS CAMPOS ANALÍTICOS
+                "estructura_as": float(r.get(COLF_EAS, 0.0)),
+                "estructura_ebp": float(r.get(COLF_EBP, 0.0)),
+                "estructura_ad": float(r.get(COLF_EAD, 0.0)),
+                "clientes_unicos": int(r.get(COLF_CLI, 0)),
+                "total_tickets": int(r.get(COLF_TKT, 0)),
+                "red_lines": float(r.get(COLF_RED, 0.0)),  # %
             })
 
         return jsonify({
@@ -954,6 +961,13 @@ def api_points_integral():
             "provincia": str(r.get(COLF_PROV, "")),
             "distrito": str(r.get(COLF_DIST, "")),
             "direccion": "No disponible (a incorporar)",
+            "estructura_as": float(r.get(COLF_EAS, 0.0)),
+            "estructura_ebp": float(r.get(COLF_EBP, 0.0)),
+            "estructura_ad": float(r.get(COLF_EAD, 0.0)),
+            "clientes_unicos": int(r.get(COLF_CLI, 0)),
+            "total_tickets": int(r.get(COLF_TKT, 0)),
+            "red_lines": float(r.get(COLF_RED, 0.0)),
+
         })
 
     # ------------ AGENTES ------------
@@ -1581,8 +1595,17 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
 • Ubicación Geográfica: ${lineaUbic}
-_____________________ Promedio TRX: ${pt.promedio} _____________________`;
-        } else {
+
+——— Métricas de la Oficina ———
+• TRX: ${pt.promedio}
+• Estructura AS: ${fmt2(pt.estructura_as)}
+• Estructura EBP: ${fmt2(pt.estructura_ebp)}
+• Estructura AD: ${fmt2(pt.estructura_ad)}
+• Clientes únicos: ${fmt0(pt.clientes_unicos)}
+• Total tickets: ${fmt0(pt.total_tickets)}
+• Red Lines: ${fmtPct(pt.red_lines)}
+_________________________________________`;
+} else {
           texto =
 `_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
@@ -1613,8 +1636,17 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 • Dirección: ${pt.direccion}
 • División: ${pt.division}
 • Ubicación Geográfica: ${lineaUbic}
-_____________________ Promedio TRX: ${pt.promedio} _____________________`;
-      } else {
+
+——— Métricas de la Oficina ———
+• TRX: ${pt.promedio}
+• Estructura AS: ${fmt2(pt.estructura_as)}
+• Estructura EBP: ${fmt2(pt.estructura_ebp)}
+• Estructura AD: ${fmt2(pt.estructura_ad)}
+• Clientes únicos: ${fmt0(pt.clientes_unicos)}
+• Total tickets: ${fmt0(pt.total_tickets)}
+• Red Lines: ${fmtPct(pt.red_lines)}
+_________________________________________`;
+} else {
         texto =
 `_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
