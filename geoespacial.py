@@ -1,6 +1,12 @@
 # ============================================================
 #   BACKEND COMPLETO + LOGIN + SELECTOR
 #   CAPAS: ISLAS (ATMs) + AGENTES + OFICINAS + INTEGRAL
+#   ✅ + ZONAS RURAL / URBANA (ZONAS.xlsx) con BORDE NEÓN
+#      - Rural: verde fosforescente
+#      - Urbana: amarillo fosforescente
+#      - Se actualiza con filtros y funciona en las 4 capas
+#   ✅ + NODOS (NODOS1.xlsx) -> GLOBOS ROJOS GRANDES con letras blancas + brillo
+#      - Se actualiza con filtros y funciona en las 4 capas (checkbox)
 # ============================================================
 
 import os
@@ -267,7 +273,218 @@ df_oficinas[COLF_TKT] = pd.to_numeric(df_oficinas[COLF_TKT], errors="coerce").fi
 df_oficinas[COLF_RED] = parse_percent_series(df_oficinas[COLF_RED])
 
 # ============================================================
-# 3. JERARQUÍA TOTAL UNIFICADA (CLIENTES + TODOS LOS CANALES)
+# 2D. CARGAR ZONAS (URBANA / RURAL) ✅ NUEVO (ZONAS.xlsx)
+#   - Lee: DEP/PROV/DIST, UBIGEO DIST, CP, UBIGEO CP, TIPO, LAT, LON
+#   - Devuelve polígonos "hull" por filtros para dibujar bordes neón
+# ============================================================
+excel_zonas_local = os.path.join(BASE_DIR, "data", "ZONAS.xlsx")
+excel_zonas_alt = "/mnt/data/ZONAS.xlsx"  # por si lo tienes montado/temporal
+excel_zonas = excel_zonas_local if os.path.exists(excel_zonas_local) else (excel_zonas_alt if os.path.exists(excel_zonas_alt) else "")
+
+df_zonas = pd.DataFrame(columns=[
+    "DEPARTAMENTO", "PROVINCIA", "DISTRITO",
+    "UBIGEO_DIST", "CENTRO_POBLADO", "UBIGEO_CP",
+    "TIPO_ZONA", "LATITUD", "LONGITUD"
+])
+
+if excel_zonas:
+    try:
+        raw_z = pd.read_excel(excel_zonas)
+
+        # columnas esperadas
+        for c in [
+            "DEPARTAMENTO","PROVINCIA","DISTRITO","UBIGEO DEL DISTRITO",
+            "NOMBRE DEL CENTRO POBLADO","UBIGEO DEL CENTRO POBLADO",
+            "TIPO DE CENTRO POBLADO","LATITUD","LONGITUD"
+        ]:
+            if c not in raw_z.columns:
+                raw_z[c] = ""
+
+        raw_z["DEPARTAMENTO"] = raw_z["DEPARTAMENTO"].apply(clean_str)
+        raw_z["PROVINCIA"] = raw_z["PROVINCIA"].apply(clean_str)
+        raw_z["DISTRITO"] = raw_z["DISTRITO"].apply(clean_str)
+
+        raw_z["UBIGEO_DIST"] = raw_z["UBIGEO DEL DISTRITO"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+        raw_z["UBIGEO_CP"]   = raw_z["UBIGEO DEL CENTRO POBLADO"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+
+        raw_z["CENTRO_POBLADO"] = raw_z["NOMBRE DEL CENTRO POBLADO"].astype(str).str.upper().str.strip()
+        raw_z["TIPO_ZONA"] = raw_z["TIPO DE CENTRO POBLADO"].astype(str).str.upper().str.strip()
+
+        raw_z["LATITUD"] = (
+            raw_z["LATITUD"].astype(str)
+            .str.replace(",", ".", regex=False)
+            .str.replace(r"[^\d\.\-]", "", regex=True)
+            .replace("", np.nan)
+            .astype(float)
+        )
+        raw_z["LONGITUD"] = (
+            raw_z["LONGITUD"].astype(str)
+            .str.replace(",", ".", regex=False)
+            .str.replace(r"[^\d\.\-]", "", regex=True)
+            .replace("", np.nan)
+            .astype(float)
+        )
+
+        df_zonas = raw_z.dropna(subset=["LATITUD", "LONGITUD"]).reset_index(drop=True)
+        df_zonas = df_zonas[[
+            "DEPARTAMENTO","PROVINCIA","DISTRITO",
+            "UBIGEO_DIST","CENTRO_POBLADO","UBIGEO_CP",
+            "TIPO_ZONA","LATITUD","LONGITUD"
+        ]].copy()
+
+        print(f"✅ ZONAS.xlsx cargado: {len(df_zonas)} filas ({excel_zonas})")
+    except Exception as e:
+        print("⚠ No se pudo cargar ZONAS.xlsx:", e)
+else:
+    print("⚠ No existe ZONAS.xlsx (bordes rural/urbano desactivados).")
+
+# Cache en memoria para no recalcular hull cada vez
+ZONAS_HULL_CACHE = {}
+
+def _convex_hull_xy(points_xy):
+    """
+    Monotonic chain convex hull.
+    points_xy: iterable de (x=lon, y=lat)
+    return: lista de (x,y) en orden del hull
+    """
+    pts = sorted(set(points_xy))
+    if len(pts) <= 1:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0])
+
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    return lower[:-1] + upper[:-1]
+
+def _rect_from_points(points_xy, pad_min=0.01):
+    xs = [p[0] for p in points_xy]
+    ys = [p[1] for p in points_xy]
+    minx, maxx = min(xs), max(xs)
+    miny, maxy = min(ys), max(ys)
+
+    if minx == maxx and miny == maxy:
+        padx = pady = pad_min
+    else:
+        padx = max(pad_min, (maxx - minx) * 0.05)
+        pady = max(pad_min, (maxy - miny) * 0.05)
+
+    minx -= padx; maxx += padx
+    miny -= pady; maxy += pady
+    return [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+
+def _zona_polygon_latlon(dff):
+    """
+    Devuelve polígono como lista [[lat,lon], ...]
+    """
+    if dff is None or dff.empty:
+        return []
+
+    pts_xy = list(zip(dff["LONGITUD"].astype(float).tolist(), dff["LATITUD"].astype(float).tolist()))
+    if len(pts_xy) < 3:
+        rect = _rect_from_points(pts_xy) if len(pts_xy) > 0 else []
+        return [[y, x] for (x, y) in rect]
+
+    hull = _convex_hull_xy(pts_xy)
+    if len(hull) < 3:
+        rect = _rect_from_points(pts_xy)
+        return [[y, x] for (x, y) in rect]
+
+    return [[y, x] for (x, y) in hull]
+
+# ============================================================
+# 2E. CARGAR NODOS (NODOS1.xlsx) ✅ NUEVO
+#   - columnas esperadas (flexible): UBIGEO, DEPARTAMENTO, PROVINCIA, DISTRITO, NOMBRE, LATITUD, LONGITUD
+#   - se usa para globos rojos con texto en el mapa (4 capas)
+# ============================================================
+excel_nodos_local = os.path.join(BASE_DIR, "data", "NODOS1.xlsx")
+excel_nodos_alt = "/mnt/data/NODOS1.xlsx"
+excel_nodos = excel_nodos_local if os.path.exists(excel_nodos_local) else (excel_nodos_alt if os.path.exists(excel_nodos_alt) else "")
+
+df_nodos = pd.DataFrame(columns=["UBIGEO","DEPARTAMENTO","PROVINCIA","DISTRITO","NOMBRE","LATITUD","LONGITUD"])
+
+if excel_nodos:
+    try:
+        raw_n = pd.read_excel(excel_nodos)
+        norm_map_n = {normalize_col(c): c for c in raw_n.columns}
+
+        def find_col_n(keys):
+            for norm, orig in norm_map_n.items():
+                for k in keys:
+                    if k in norm:
+                        return orig
+            return None
+
+        COLN_UBI = find_col_n(["UBIGEO"]) or "UBIGEO"
+        COLN_DEP = find_col_n(["DEPARTAMENTO"]) or "DEPARTAMENTO"
+        COLN_PRO = find_col_n(["PROVINCIA"]) or "PROVINCIA"
+        COLN_DIS = find_col_n(["DISTRITO"]) or "DISTRITO"
+        COLN_NOM = find_col_n(["NOMBRE"]) or "NOMBRE"
+        COLN_LAT = find_col_n(["LATITUD", "LAT"]) or "LATITUD"
+        COLN_LON = find_col_n(["LONGITUD", "LON"]) or "LONGITUD"
+
+        for c in [COLN_UBI, COLN_DEP, COLN_PRO, COLN_DIS, COLN_NOM, COLN_LAT, COLN_LON]:
+            if c not in raw_n.columns:
+                raw_n[c] = ""
+
+        raw_n[COLN_DEP] = raw_n[COLN_DEP].apply(clean_str)
+        raw_n[COLN_PRO] = raw_n[COLN_PRO].apply(clean_str)
+        raw_n[COLN_DIS] = raw_n[COLN_DIS].apply(clean_str)
+
+        raw_n[COLN_UBI] = (
+            raw_n[COLN_UBI].astype(str)
+            .str.replace(r"\.0$", "", regex=True)
+            .str.strip()
+        )
+        raw_n[COLN_NOM] = raw_n[COLN_NOM].astype(str).str.strip()
+
+        raw_n[COLN_LAT] = (
+            raw_n[COLN_LAT].astype(str)
+            .str.replace(",", ".", regex=False)
+            .str.replace(r"[^\d\.\-]", "", regex=True)
+            .replace("", np.nan)
+            .astype(float)
+        )
+        raw_n[COLN_LON] = (
+            raw_n[COLN_LON].astype(str)
+            .str.replace(",", ".", regex=False)
+            .str.replace(r"[^\d\.\-]", "", regex=True)
+            .replace("", np.nan)
+            .astype(float)
+        )
+
+        df_nodos = raw_n.dropna(subset=[COLN_LAT, COLN_LON]).copy()
+
+        df_nodos = df_nodos.rename(columns={
+            COLN_UBI: "UBIGEO",
+            COLN_DEP: "DEPARTAMENTO",
+            COLN_PRO: "PROVINCIA",
+            COLN_DIS: "DISTRITO",
+            COLN_NOM: "NOMBRE",
+            COLN_LAT: "LATITUD",
+            COLN_LON: "LONGITUD",
+        })
+
+        df_nodos = df_nodos[["UBIGEO","DEPARTAMENTO","PROVINCIA","DISTRITO","NOMBRE","LATITUD","LONGITUD"]].copy()
+        print(f"✅ NODOS1.xlsx cargado: {len(df_nodos)} filas ({excel_nodos})")
+    except Exception as e:
+        print("⚠ No se pudo cargar NODOS1.xlsx:", e)
+else:
+    print("⚠ No existe NODOS1.xlsx (globos rojos desactivados).")
+
+# ============================================================
+# 3. JERARQUÍA TOTAL UNIFICADA (CLIENTES + TODOS LOS CANALES + NODOS)
 # ============================================================
 geo_frames = []
 geo_frames.append(
@@ -286,6 +503,14 @@ geo_frames.append(
     )
 )
 geo_frames.append(df_clientes[["departamento", "provincia", "distrito"]])
+
+# ✅ NODOS para que también entren en filtros Dep/Prov/Dist
+if df_nodos is not None and not df_nodos.empty:
+    geo_frames.append(
+        df_nodos[["DEPARTAMENTO","PROVINCIA","DISTRITO"]].rename(
+            columns={"DEPARTAMENTO":"departamento","PROVINCIA":"provincia","DISTRITO":"distrito"}
+        )
+    )
 
 geo_all = pd.concat(geo_frames, ignore_index=True)
 geo_all["departamento"] = geo_all["departamento"].apply(clean_str)
@@ -517,6 +742,76 @@ def api_recomendaciones():
     return jsonify(recomendaciones.to_dict(orient="records"))
 
 # ============================================================
+# ✅ API ZONAS — /api/zonas (RURAL / URBANA)
+#   - Devuelve hull por filtros (departamento/provincia/distrito)
+# ============================================================
+@app.route("/api/zonas")
+@login_required
+def api_zonas():
+    dpto = request.args.get("departamento", "").upper().strip()
+    prov = request.args.get("provincia", "").upper().strip()
+    dist = request.args.get("distrito", "").upper().strip()
+
+    def build_for(tipo_key):
+        cache_key = (dpto, prov, dist, tipo_key)
+        if cache_key in ZONAS_HULL_CACHE:
+            return ZONAS_HULL_CACHE[cache_key]
+
+        dff = df_zonas
+        if dpto: dff = dff[dff["DEPARTAMENTO"] == dpto]
+        if prov: dff = dff[dff["PROVINCIA"] == prov]
+        if dist: dff = dff[dff["DISTRITO"] == dist]
+
+        dff_t = dff[dff["TIPO_ZONA"].astype(str).str.contains(tipo_key, na=False)]
+        poly = _zona_polygon_latlon(dff_t)
+        out = {"count": int(len(dff_t)), "poly": poly}
+        ZONAS_HULL_CACHE[cache_key] = out
+        return out
+
+    # URBAN cubre URBANO / URBANA
+    rural = build_for("RURAL")
+    urban = build_for("URBAN")
+
+    return jsonify({"rural": rural, "urbano": urban})
+
+# ============================================================
+# ✅ API NODOS — /api/nodos (globos rojos)
+#   - Devuelve nodos filtrados por departamento/provincia/distrito
+# ============================================================
+@app.route("/api/nodos")
+@login_required
+def api_nodos():
+    dpto = request.args.get("departamento", "").upper().strip()
+    prov = request.args.get("provincia", "").upper().strip()
+    dist = request.args.get("distrito", "").upper().strip()
+
+    if df_nodos is None or df_nodos.empty:
+        return jsonify({"total": 0, "nodos": []})
+
+    dff = df_nodos.copy()
+    dff["DEPARTAMENTO"] = dff["DEPARTAMENTO"].astype(str).str.upper().str.strip()
+    dff["PROVINCIA"] = dff["PROVINCIA"].astype(str).str.upper().str.strip()
+    dff["DISTRITO"] = dff["DISTRITO"].astype(str).str.upper().str.strip()
+
+    if dpto: dff = dff[dff["DEPARTAMENTO"] == dpto]
+    if prov: dff = dff[dff["PROVINCIA"] == prov]
+    if dist: dff = dff[dff["DISTRITO"] == dist]
+
+    nodos = []
+    for _, r in dff.iterrows():
+        nodos.append({
+            "ubigeo": str(r.get("UBIGEO","")).strip(),
+            "departamento": str(r.get("DEPARTAMENTO","")).strip(),
+            "provincia": str(r.get("PROVINCIA","")).strip(),
+            "distrito": str(r.get("DISTRITO","")).strip(),
+            "nombre": str(r.get("NOMBRE","")).strip(),
+            "lat": float(r.get("LATITUD", 0.0)),
+            "lon": float(r.get("LONGITUD", 0.0)),
+        })
+
+    return jsonify({"total": len(nodos), "nodos": nodos})
+
+# ============================================================
 # 6. RUTAS MAPA
 # ============================================================
 @app.route("/mapa/integral")
@@ -721,7 +1016,6 @@ def api_points():
         total_oficinas = int(len(dff))
         suma_total = float(dff[COLF_TRX].sum()) if total_oficinas > 0 else 0.0
 
-        # ✅ PROMEDIOS REQUERIDOS
         prom_eas = float(dff[COLF_EAS].mean()) if total_oficinas > 0 else 0.0
         prom_ebp = float(dff[COLF_EBP].mean()) if total_oficinas > 0 else 0.0
         prom_ead = float(dff[COLF_EAD].mean()) if total_oficinas > 0 else 0.0
@@ -745,13 +1039,12 @@ def api_points():
                 "distrito": str(r.get(COLF_DIST, "")),
                 "direccion": "No disponible (a incorporar)",
                 "capa": "",
-                # ✅ NUEVOS CAMPOS ANALÍTICOS
                 "estructura_as": float(r.get(COLF_EAS, 0.0)),
                 "estructura_ebp": float(r.get(COLF_EBP, 0.0)),
                 "estructura_ad": float(r.get(COLF_EAD, 0.0)),
                 "clientes_unicos": int(r.get(COLF_CLI, 0)),
                 "total_tickets": int(r.get(COLF_TKT, 0)),
-                "red_lines": float(r.get(COLF_RED, 0.0)),  # %
+                "red_lines": float(r.get(COLF_RED, 0.0)),
             })
 
         return jsonify({
@@ -770,7 +1063,6 @@ def api_points():
             "total_capa_B": 0,
             "total_capa_C": 0,
 
-            # ✅ nuevos campos para el panel (debajo de suma TRX)
             "prom_estructura_as": prom_eas,
             "prom_estructura_ebp": prom_ebp,
             "prom_estructura_ad": prom_ead,
@@ -937,7 +1229,6 @@ def api_points_integral():
     puntos_of = []
     suma_of = float(dfO[COLF_TRX].sum())
 
-    # ✅ PROMEDIOS OFICINAS PARA PANEL INTEGRAL
     total_of = int(len(dfO))
     prom_of_eas = float(dfO[COLF_EAS].mean()) if total_of > 0 else 0.0
     prom_of_ebp = float(dfO[COLF_EBP].mean()) if total_of > 0 else 0.0
@@ -967,7 +1258,6 @@ def api_points_integral():
             "clientes_unicos": int(r.get(COLF_CLI, 0)),
             "total_tickets": int(r.get(COLF_TKT, 0)),
             "red_lines": float(r.get(COLF_RED, 0.0)),
-
         })
 
     # ------------ AGENTES ------------
@@ -1016,7 +1306,6 @@ def api_points_integral():
         "total_oficinas": len(puntos_of),
         "total_agentes": len(puntos_ag),
 
-        # ✅ NUEVOS CAMPOS (PROMEDIOS OFICINAS) PARA PANEL OFICINAS EN INTEGRAL
         "prom_ofi_estructura_as": prom_of_eas,
         "prom_ofi_estructura_ebp": prom_of_ebp,
         "prom_ofi_estructura_ad": prom_of_ead,
@@ -1029,8 +1318,10 @@ def api_points_integral():
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
 # ✅ + PROMEDIOS EN PANEL OFICINAS (OFICINAS + INTEGRAL)
 # ✅ + ÍCONOS MÁS GRANDES EN MAPA + LEYENDAS MÁS GRANDES
+# ✅ + CHECKBOX ZONAS RURAL/URBANA + BORDES NEÓN (4 CAPAS)
+# ✅ + CHECKBOX NODOS + GLOBOS ROJOS GRANDES (4 CAPAS)
 # ============================================================
-TEMPLATE_MAPA = """
+TEMPLATE_MAPA = """\
 <!doctype html>
 <html>
 <head>
@@ -1081,13 +1372,12 @@ TEMPLATE_MAPA = """
     .legend{ margin-top:10px; }
     .legend .legend-item{ display:flex; align-items:center; gap:12px; margin-top:8px; }
     .legend .legend-item img{
-      /* ✅ MÁS GRANDE (leyenda) */
       width:70px; height:70px; object-fit:contain;
       background:#fff; border:1px solid #e6eef8; border-radius:14px;
       padding:6px; box-shadow:0 3px 10px rgba(0,0,0,0.10);
     }
     .legend .legend-item .lbl{ color:var(--muted); font-size:12px; }
-    .icon-reco { font-size: 30px; color: #ffcc00; text-shadow: 0 0 4px black; } /* ✅ más visible */
+    .icon-reco { font-size: 30px; color: #ffcc00; text-shadow: 0 0 4px black; }
     .side-card-atm{
       font-family:"Consolas","Fira Code",monospace;
       white-space:pre-line; line-height:1.35;
@@ -1109,10 +1399,81 @@ TEMPLATE_MAPA = """
     .side-card-atm.glow{ animation:panelGlow 2.2s ease-in-out infinite; }
     .hidden{ display:none; }
     .leaflet-popup-content-wrapper{ border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.25); }
+
     .division-neon{
       filter: drop-shadow(0 0 10px rgba(30,108,255,0.95))
               drop-shadow(0 0 22px rgba(30,108,255,0.70))
               drop-shadow(0 0 38px rgba(30,108,255,0.40));
+    }
+
+    /* ======================================================
+       ✅ ZONAS RURAL/URBANA (borde neón)
+       ====================================================== */
+    .zone-box{
+      padding:6px 10px;
+      border-radius:12px;
+      border:1px solid #d0d7e3;
+      background:#f7fbff;
+      box-shadow:0 3px 10px rgba(0,0,0,0.06);
+      display:flex; align-items:center; gap:10px;
+    }
+    .zone-swatch{
+      width:18px; height:18px;
+      border-radius:6px;
+      border:1px solid rgba(0,0,0,0.18);
+      box-shadow:0 0 10px rgba(255,255,255,0.45);
+      flex:0 0 auto;
+    }
+    .zone-swatch.rural{ background:#00FF66; box-shadow:0 0 12px rgba(0,255,102,0.9); }
+    .zone-swatch.urban{ background:#D6FF00; box-shadow:0 0 12px rgba(214,255,0,0.9); }
+
+    .zone-neon-rural{
+      filter: drop-shadow(0 0 10px rgba(0,255,102,0.95))
+              drop-shadow(0 0 22px rgba(0,255,102,0.70))
+              drop-shadow(0 0 38px rgba(0,255,102,0.40));
+    }
+    .zone-neon-urban{
+      filter: drop-shadow(0 0 10px rgba(214,255,0,0.95))
+              drop-shadow(0 0 22px rgba(214,255,0,0.70))
+              drop-shadow(0 0 38px rgba(214,255,0,0.40));
+    }
+
+    /* ======================================================
+       ✅ NODOS — Globos rojos grandes con texto blanco + brillo
+       ====================================================== */
+    .leaflet-div-icon.nodo-icon{ background:transparent; border:none; }
+    .nodo-balloon{
+      position:relative;
+      display:inline-block;
+      max-width:280px;
+      padding:12px 16px;
+      background: radial-gradient(circle at 30% 25%, #ff9a9a 0%, #ff2a2a 35%, #b80000 100%);
+      color:#fff;
+      font-weight:900;
+      font-size:14px;
+      line-height:1.15;
+      border-radius:20px;
+      border:2px solid rgba(255,255,255,0.92);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+      box-shadow: 0 0 18px rgba(255,0,0,0.85), 0 0 44px rgba(255,70,0,0.60);
+      animation:nodoPulse 1.7s ease-in-out infinite;
+    }
+    .nodo-balloon:after{
+      content:"";
+      position:absolute;
+      left:50%;
+      bottom:-12px;
+      transform:translateX(-50%);
+      width:0;height:0;
+      border-left:12px solid transparent;
+      border-right:12px solid transparent;
+      border-top:14px solid #ff2a2a;
+      filter: drop-shadow(0 0 12px rgba(255,0,0,0.95));
+    }
+    @keyframes nodoPulse{
+      0%{ box-shadow:0 0 14px rgba(255,0,0,0.60), 0 0 34px rgba(255,80,0,0.35); transform:scale(1.00); }
+      50%{ box-shadow:0 0 26px rgba(255,0,0,0.98), 0 0 68px rgba(255,80,0,0.78); transform:scale(1.03); }
+      100%{ box-shadow:0 0 14px rgba(255,0,0,0.60), 0 0 34px rgba(255,80,0,0.35); transform:scale(1.00); }
     }
   </style>
 </head>
@@ -1196,6 +1557,16 @@ TEMPLATE_MAPA = """
       <label style="margin-left:16px;"><input type="checkbox" id="chkHeatClientes"> Heatmap Clientes</label>
       <label style="margin-left:16px;"><input type="checkbox" id="chkReco"> Recomendaciones</label>
 
+      <!-- ✅ NODOS (globos rojos) -->
+      <label style="margin-left:16px;"><input type="checkbox" id="chkNodos" checked> Globos (NODOS)</label>
+
+      <!-- ✅ ZONAS (aplica a las 4 capas) -->
+      <div class="zone-box" style="margin-left:16px;">
+        <span style="color:var(--muted); font-size:13px; font-weight:700;">Zonas:</span>
+        <label style="gap:4px; margin:0;"><input type="checkbox" id="chkZonaRural"> Rural</label>
+        <label style="gap:4px; margin:0;"><input type="checkbox" id="chkZonaUrbana"> Urbana</label>
+      </div>
+
       <div style="flex:1"></div>
       <div style="font-size:13px; color:var(--muted);">
         Mostrando <span id="infoCount">--</span> {% if tipo_mapa == 'integral' %} puntos {% else %} registros {% endif %}
@@ -1212,6 +1583,26 @@ TEMPLATE_MAPA = """
         <img src="{{ url_for('static', filename='banco.png') }}" alt="BBVA">
       </div>
       {% endif %}
+
+      <!-- ✅ PANEL ZONAS (siempre visible) -->
+      <div id="panelZonasLegend" class="side-card">
+        <div class="side-title">🗺️ Zonas (Rural / Urbana)</div>
+        <div class="muted">Bordes neón por filtros (Departamento / Provincia / Distrito). Funciona en las 4 capas.</div>
+
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+
+          <div class="legend-item">
+            <div class="zone-swatch rural"></div>
+            <div class="lbl">Rural — verde fosforescente (<span id="zonaRuralCount">0</span>)</div>
+          </div>
+
+          <div class="legend-item">
+            <div class="zone-swatch urban"></div>
+            <div class="lbl">Urbana — amarillo fosforescente (<span id="zonaUrbanCount">0</span>)</div>
+          </div>
+        </div>
+      </div>
 
       <div id="panelATMResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'islas' %}hidden{% endif %}">
         <div class="side-title">🌐 Panel ATMs</div>
@@ -1245,7 +1636,7 @@ TEMPLATE_MAPA = """
         </div>
       </div>
 
-      <!-- ✅ PANEL OFICINAS: ahora con promedios debajo de Suma TRX -->
+      <!-- ✅ PANEL OFICINAS -->
       <div id="panelOfiResumen" class="side-card {% if tipo_mapa != 'integral' and tipo_mapa != 'oficinas' %}hidden{% endif %}">
         <div class="side-title">🏦 Panel Oficinas</div>
         {% if tipo_mapa == 'integral' %}
@@ -1257,7 +1648,6 @@ TEMPLATE_MAPA = """
         <div style="margin-top:8px;"><b>Total Oficinas:</b> <span id="resOfiTotal">0</span></div>
         <div class="muted" style="margin-top:4px;"><b>Suma TRX:</b> <span id="resOfiSuma">0</span></div>
 
-        <!-- ✅ NUEVO: PROMEDIOS -->
         <div class="muted" style="margin-top:6px;"><b>Prom. ESTRUCTURA AS:</b> <span id="resOfiPromEAS">0</span></div>
         <div class="muted"><b>Prom. ESTRUCTURA EBP:</b> <span id="resOfiPromEBP">0</span></div>
         <div class="muted"><b>Prom. ESTRUCTURA AD:</b> <span id="resOfiPromEAD">0</span></div>
@@ -1344,10 +1734,7 @@ TEMPLATE_MAPA = """
     const ICON_OFICINA_URL     = "{{ url_for('static', filename='oficina1.png') }}";
     const ICON_AGENTE_URL      = "{{ url_for('static', filename='agente1.png') }}";
 
-    // ======================================================
-    // ✅ ÍCONOS MÁS GRANDES (MAPA) — COMO TU CAPTURA
-    // ======================================================
-    const ICON_SIZE = 72;                // <-- ajusta aquí si lo quieres aún más grande (ej: 80)
+    const ICON_SIZE = 72;
     const ICON_ANCH = ICON_SIZE / 2;
     const POP_ANCH  = -ICON_ANCH;
 
@@ -1371,10 +1758,21 @@ TEMPLATE_MAPA = """
     const map = L.map('map').setView(INITIAL_CENTER, INITIAL_ZOOM);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
 
+    // ✅ Pane para zonas (debajo de markers, encima del mapa)
+    map.createPane('zonesPane');
+    map.getPane('zonesPane').style.zIndex = 380;
+
+    // ✅ Pane para NODOS (globos rojos arriba de todo)
+    map.createPane('nodosPane');
+    map.getPane('nodosPane').style.zIndex = 760;
+
     const markers = L.markerClusterGroup({chunkedLoading:true});
     const heat = L.heatLayer([], {radius:28, blur:22});
     const markersReco = L.layerGroup();
     const heatClientes = L.heatLayer([], { radius: 7, blur: 6, maxZoom: 18, minOpacity: 0.04 });
+
+    // ✅ Layer NODOS (globos)
+    const nodosLayer = L.layerGroup().addTo(map);
 
     markers.addTo(map);
     heat.addTo(map);
@@ -1392,10 +1790,60 @@ TEMPLATE_MAPA = """
     const selSegmento = document.getElementById("selSegmento");
     const chkReco = document.getElementById("chkReco");
 
-    // ---- NUEVO: helpers de formato ----
+    // ✅ checkboxes zonas
+    const chkZonaRural  = document.getElementById("chkZonaRural");
+    const chkZonaUrbana = document.getElementById("chkZonaUrbana");
+
+    // ✅ checkbox nodos
+    const chkNodos = document.getElementById("chkNodos");
+
     const fmt2 = (v)=> (Number(v||0)).toFixed(2);
     const fmt0 = (v)=> String(Math.round(Number(v||0)));
     const fmtPct = (v)=> `${(Number(v||0)).toFixed(2)}%`;
+
+    // ======================================================
+    // ✅ NODOS — Globos rojos (fetch + render)
+    // ======================================================
+    function escHtml(s){
+      return String(s||"").replace(/[&<>"']/g, (c)=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#039;"
+      }[c]));
+    }
+
+    function nodoIcon(nombre){
+      return L.divIcon({
+        className: "nodo-icon",
+        html: `<div class="nodo-balloon">${escHtml(nombre)}</div>`,
+        iconSize: [300, 90],
+        iconAnchor: [150, 90],
+      });
+    }
+
+    async function fetchNodos(){
+      try{
+        nodosLayer.clearLayers();
+        if(!chkNodos || !chkNodos.checked) return;
+
+        const d = selDep.value, p = selProv.value, di = selDist.value;
+        const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}`;
+
+        const res = await fetch(`/api/nodos?${qs}`);
+        const js = await res.json();
+        const arr = js.nodos || [];
+
+        arr.forEach(n=>{
+          const m = L.marker([n.lat, n.lon], {
+            pane: "nodosPane",
+            icon: nodoIcon(n.nombre),
+            zIndexOffset: 6000
+          });
+          m.bindPopup(`<b>${escHtml(n.nombre)}</b><br>${escHtml(n.departamento)} / ${escHtml(n.provincia)} / ${escHtml(n.distrito)}`);
+          nodosLayer.addLayer(m);
+        });
+      }catch(err){
+        console.error("Error cargando NODOS:", err);
+      }
+    }
 
     // ======================================================
     // ✅ BORDE NEÓN POR DIVISIÓN (se mantiene)
@@ -1467,6 +1915,82 @@ TEMPLATE_MAPA = """
         }
       }
       drawDivisionBorder(outline);
+    }
+
+    // ======================================================
+    // ✅ ZONAS RURAL / URBANA (bordes neón desde backend)
+    // ======================================================
+    let zonaRuralLayer = null;
+    let zonaUrbanLayer = null;
+
+    function clearZonaRural(){
+      if(zonaRuralLayer){ try{ map.removeLayer(zonaRuralLayer); }catch(e){} zonaRuralLayer=null; }
+    }
+    function clearZonaUrban(){
+      if(zonaUrbanLayer){ try{ map.removeLayer(zonaUrbanLayer); }catch(e){} zonaUrbanLayer=null; }
+    }
+
+    function drawZona(polyLatLng, color, className){
+      if(!polyLatLng || polyLatLng.length < 3) return null;
+
+      const glow = L.polygon(polyLatLng, {
+        pane: "zonesPane",
+        color: color, weight: 18, opacity: 0.22, fill: false,
+        lineCap: "round", lineJoin: "round",
+        interactive: false,
+        className: className
+      });
+
+      const main = L.polygon(polyLatLng, {
+        pane: "zonesPane",
+        color: color, weight: 9, opacity: 0.98, fill: false,
+        lineCap: "round", lineJoin: "round",
+        interactive: false,
+        className: className
+      });
+
+      const grp = L.layerGroup([glow, main]).addTo(map);
+      try { glow.bringToFront(); main.bringToFront(); } catch(e){}
+      return grp;
+    }
+
+    async function fetchZonasBorders(){
+      const showR = (chkZonaRural && chkZonaRural.checked);
+      const showU = (chkZonaUrbana && chkZonaUrbana.checked);
+
+      if(!showR) clearZonaRural();
+      if(!showU) clearZonaUrban();
+
+      const ruralCountEl = document.getElementById("zonaRuralCount");
+      const urbanCountEl = document.getElementById("zonaUrbanCount");
+      if(!showR && ruralCountEl) ruralCountEl.textContent = "0";
+      if(!showU && urbanCountEl) urbanCountEl.textContent = "0";
+
+      if(!showR && !showU) return;
+
+      try{
+        const d = selDep.value, p = selProv.value, di = selDist.value;
+        const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}`;
+        const res = await fetch(`/api/zonas?${qs}`);
+        const js = await res.json();
+
+        const rural = js.rural || {};
+        const urbano = js.urbano || {};
+
+        if(ruralCountEl) ruralCountEl.textContent = String(rural.count ?? 0);
+        if(urbanCountEl) urbanCountEl.textContent = String(urbano.count ?? 0);
+
+        if(showR){
+          clearZonaRural();
+          zonaRuralLayer = drawZona(rural.poly || [], "#00FF66", "zone-neon-rural");
+        }
+        if(showU){
+          clearZonaUrban();
+          zonaUrbanLayer = drawZona(urbano.poly || [], "#D6FF00", "zone-neon-urban");
+        }
+      }catch(err){
+        console.error("Error cargando zonas:", err);
+      }
     }
 
     // ======================================================
@@ -1605,7 +2129,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 • Total tickets: ${fmt0(pt.total_tickets)}
 • Red Lines: ${fmtPct(pt.red_lines)}
 _________________________________________`;
-} else {
+        } else {
           texto =
 `_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
@@ -1646,7 +2170,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 • Total tickets: ${fmt0(pt.total_tickets)}
 • Red Lines: ${fmtPct(pt.red_lines)}
 _________________________________________`;
-} else {
+      } else {
         texto =
 `_____________________ ATM ${pt.atm} _____________________
 • Nombre: ${pt.nombre}
@@ -1756,7 +2280,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 
       pts.forEach(pt => {
         const icon = getIcon(pt);
-        const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1200});  // ✅ ayuda a que no “se pierda”
+        const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1200});
         m.on("click", () => showATMPanel(pt));
         markers.addLayer(m);
         heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
@@ -1777,7 +2301,6 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 
       updateDivisionBorderFromPoints(bounds.map(b => L.latLng(b[0], b[1])));
 
-      // --- Actualización paneles ---
       if(TIPO_MAPA === "islas"){
         document.getElementById("resAtmTotal").textContent = data.total_atms || 0;
         document.getElementById("resAtmSuma").textContent = Math.round(data.suma_total || 0);
@@ -1791,8 +2314,6 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
       if(TIPO_MAPA === "oficinas"){
         document.getElementById("resOfiTotal").textContent = data.total_oficinas || 0;
         document.getElementById("resOfiSuma").textContent = Math.round(data.suma_total || 0);
-
-        // ✅ NUEVO: promedios debajo de suma TRX
         document.getElementById("resOfiPromEAS").textContent = fmt2(data.prom_estructura_as);
         document.getElementById("resOfiPromEBP").textContent = fmt2(data.prom_estructura_ebp);
         document.getElementById("resOfiPromEAD").textContent = fmt2(data.prom_estructura_ad);
@@ -1819,6 +2340,12 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
       } else {
         if (map.hasLayer(markersReco)) map.removeLayer(markersReco);
       }
+
+      // ✅ ZONAS (si está activado)
+      await fetchZonasBorders();
+
+      // ✅ NODOS (globos rojos)
+      await fetchNodos();
     }
 
     // ======================================================
@@ -1861,7 +2388,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
         (data.atms || []).forEach(pt=>{
           const ubic = (pt.ubicacion || "").toUpperCase();
           const icon = ubic.includes("OFICINA") ? ICON_ATM_OFICINA : ICON_ATM_ISLA;
-          const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1100}); // ✅
+          const m = L.marker([pt.lat, pt.lon], {icon, zIndexOffset: 1100});
           m.on("click",()=>showATMPanel(pt));
           markers.addLayer(m);
           heatPts.push([pt.lat, pt.lon, Math.max(1, pt.promedio || 1)]);
@@ -1871,7 +2398,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 
       if(showOfi){
         (data.oficinas || []).forEach(pt=>{
-          const m = L.marker([pt.lat, pt.lon], {icon:ICON_OFICINA, zIndexOffset: 1400}); // ✅ oficinas arriba
+          const m = L.marker([pt.lat, pt.lon], {icon:ICON_OFICINA, zIndexOffset: 1400});
           m.on("click",()=>showATMPanel(pt));
           markers.addLayer(m);
           bounds.push([pt.lat, pt.lon]);
@@ -1880,7 +2407,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 
       if(showAg){
         (data.agentes || []).forEach(pt=>{
-          const m = L.marker([pt.lat, pt.lon], {icon:ICON_AGENTE, zIndexOffset: 1200}); // ✅
+          const m = L.marker([pt.lat, pt.lon], {icon:ICON_AGENTE, zIndexOffset: 1200});
           m.on("click",()=>showATMPanel(pt));
           markers.addLayer(m);
           bounds.push([pt.lat, pt.lon]);
@@ -1929,7 +2456,6 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
       document.getElementById("resOfiTotal").textContent = showOfi ? ofi_total : 0;
       document.getElementById("resOfiSuma").textContent  = showOfi ? Math.round(ofi_suma) : 0;
 
-      // ✅ NUEVO: promedios oficinas en integral
       document.getElementById("resOfiPromEAS").textContent = showOfi ? fmt2(data.prom_ofi_estructura_as) : "0.00";
       document.getElementById("resOfiPromEBP").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ebp) : "0.00";
       document.getElementById("resOfiPromEAD").textContent = showOfi ? fmt2(data.prom_ofi_estructura_ad) : "0.00";
@@ -1963,6 +2489,12 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
       infoBox.textContent = visibleCount;
 
       syncIntegralPanelsVisibility();
+
+      // ✅ ZONAS (si está activado)
+      await fetchZonasBorders();
+
+      // ✅ NODOS (globos rojos)
+      await fetchNodos();
     }
 
     // ======================================================
@@ -2065,6 +2597,13 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
         }
       };
     }
+
+    // ✅ Eventos ZONAS (no recarga puntos, solo dibuja/quita bordes)
+    if(chkZonaRural)  chkZonaRural.onchange  = ()=> fetchZonasBorders();
+    if(chkZonaUrbana) chkZonaUrbana.onchange = ()=> fetchZonasBorders();
+
+    // ✅ Evento NODOS (prender/apagar globos)
+    if(chkNodos) chkNodos.onchange = ()=> fetchNodos();
 
     // Inicializar
     updateProvincias();
