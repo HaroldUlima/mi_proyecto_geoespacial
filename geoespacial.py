@@ -5,8 +5,10 @@
 #      - Rural: verde fosforescente
 #      - Urbana: amarillo fosforescente
 #      - Se actualiza con filtros y funciona en las 4 capas
-#   ✅ + NODOS (NODOS1.xlsx) -> GLOBOS ROJOS GRANDES con letras blancas + brillo
-#      - Se actualiza con filtros y funciona en las 4 capas (checkbox)
+#   ✅ + NODOS (NODOS1.xlsx) -> AHORA: ÍCONO ROJO (pin) + CLICK muestra el globo con nombre
+#      - Panel Comercial (derecha): cuenta hospitales, clínicas, C.Comerciales, Plaza Vea, Sodimac,
+#        Metro, Tottus, Wong, universidades, mercados (según NOMBRE del nodo)
+#      - Se actualiza con filtros y funciona en las 4 capas
 # ============================================================
 
 import os
@@ -93,6 +95,50 @@ def parse_percent_series(s):
     if len(v) and v.max() <= 1.0:
         v = v * 100.0
     return v
+
+def norm_txt(s):
+    """
+    Normaliza texto para clasificación (quita tildes, uppercase, espacios).
+    """
+    s = unicodedata.normalize("NFKD", str(s))
+    s = s.encode("ascii", "ignore").decode("utf-8")
+    s = s.upper()
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def nodo_categoria(nombre: str) -> str:
+    """
+    Clasifica NODOS1.xlsx por el campo NOMBRE (heurística por keywords).
+    Devuelve categorías usadas por el Panel Comercial.
+    """
+    n = norm_txt(nombre)
+
+    # orden importa
+    if "PLAZA VEA" in n or "PLAZAVEA" in n:
+        return "PLAZA_VEA"
+    if "SODIMAC" in n:
+        return "SODIMAC"
+    # METRO (supermercado) -> palabra completa
+    if re.search(r"\bMETRO\b", n):
+        return "METRO"
+    if "TOTTUS" in n:
+        return "TOTTUS"
+    if "WONG" in n:
+        return "WONG"
+
+    # categorías generales
+    if "HOSPITAL" in n:
+        return "HOSPITAL"
+    if "CLINICA" in n or "CLINIC" in n:
+        return "CLINICA"
+    if "UNIVERSIDAD" in n or re.search(r"\bUNIV\b", n):
+        return "UNIVERSIDAD"
+    if "MERCADO" in n or "MARKET" in n or "FERIA" in n:
+        return "MERCADO"
+    if "CENTRO COMERCIAL" in n or "C.C" in n or "MALL" in n or "SHOPPING" in n:
+        return "CENTRO_COMERCIAL"
+
+    return "OTRO"
 
 # ============================================================
 # 2. CARGAR EXCEL PRINCIPAL (ISLAS / ATMs)
@@ -274,11 +320,9 @@ df_oficinas[COLF_RED] = parse_percent_series(df_oficinas[COLF_RED])
 
 # ============================================================
 # 2D. CARGAR ZONAS (URBANA / RURAL) ✅ NUEVO (ZONAS.xlsx)
-#   - Lee: DEP/PROV/DIST, UBIGEO DIST, CP, UBIGEO CP, TIPO, LAT, LON
-#   - Devuelve polígonos "hull" por filtros para dibujar bordes neón
 # ============================================================
 excel_zonas_local = os.path.join(BASE_DIR, "data", "ZONAS.xlsx")
-excel_zonas_alt = "/mnt/data/ZONAS.xlsx"  # por si lo tienes montado/temporal
+excel_zonas_alt = "/mnt/data/ZONAS.xlsx"
 excel_zonas = excel_zonas_local if os.path.exists(excel_zonas_local) else (excel_zonas_alt if os.path.exists(excel_zonas_alt) else "")
 
 df_zonas = pd.DataFrame(columns=[
@@ -291,7 +335,6 @@ if excel_zonas:
     try:
         raw_z = pd.read_excel(excel_zonas)
 
-        # columnas esperadas
         for c in [
             "DEPARTAMENTO","PROVINCIA","DISTRITO","UBIGEO DEL DISTRITO",
             "NOMBRE DEL CENTRO POBLADO","UBIGEO DEL CENTRO POBLADO",
@@ -338,15 +381,9 @@ if excel_zonas:
 else:
     print("⚠ No existe ZONAS.xlsx (bordes rural/urbano desactivados).")
 
-# Cache en memoria para no recalcular hull cada vez
 ZONAS_HULL_CACHE = {}
 
 def _convex_hull_xy(points_xy):
-    """
-    Monotonic chain convex hull.
-    points_xy: iterable de (x=lon, y=lat)
-    return: lista de (x,y) en orden del hull
-    """
     pts = sorted(set(points_xy))
     if len(pts) <= 1:
         return pts
@@ -385,9 +422,6 @@ def _rect_from_points(points_xy, pad_min=0.01):
     return [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
 
 def _zona_polygon_latlon(dff):
-    """
-    Devuelve polígono como lista [[lat,lon], ...]
-    """
     if dff is None or dff.empty:
         return []
 
@@ -405,8 +439,6 @@ def _zona_polygon_latlon(dff):
 
 # ============================================================
 # 2E. CARGAR NODOS (NODOS1.xlsx) ✅ NUEVO
-#   - columnas esperadas (flexible): UBIGEO, DEPARTAMENTO, PROVINCIA, DISTRITO, NOMBRE, LATITUD, LONGITUD
-#   - se usa para globos rojos con texto en el mapa (4 capas)
 # ============================================================
 excel_nodos_local = os.path.join(BASE_DIR, "data", "NODOS1.xlsx")
 excel_nodos_alt = "/mnt/data/NODOS1.xlsx"
@@ -481,7 +513,7 @@ if excel_nodos:
     except Exception as e:
         print("⚠ No se pudo cargar NODOS1.xlsx:", e)
 else:
-    print("⚠ No existe NODOS1.xlsx (globos rojos desactivados).")
+    print("⚠ No existe NODOS1.xlsx (comercial/nodos desactivados).")
 
 # ============================================================
 # 3. JERARQUÍA TOTAL UNIFICADA (CLIENTES + TODOS LOS CANALES + NODOS)
@@ -504,7 +536,6 @@ geo_frames.append(
 )
 geo_frames.append(df_clientes[["departamento", "provincia", "distrito"]])
 
-# ✅ NODOS para que también entren en filtros Dep/Prov/Dist
 if df_nodos is not None and not df_nodos.empty:
     geo_frames.append(
         df_nodos[["DEPARTAMENTO","PROVINCIA","DISTRITO"]].rename(
@@ -743,7 +774,6 @@ def api_recomendaciones():
 
 # ============================================================
 # ✅ API ZONAS — /api/zonas (RURAL / URBANA)
-#   - Devuelve hull por filtros (departamento/provincia/distrito)
 # ============================================================
 @app.route("/api/zonas")
 @login_required
@@ -768,15 +798,15 @@ def api_zonas():
         ZONAS_HULL_CACHE[cache_key] = out
         return out
 
-    # URBAN cubre URBANO / URBANA
     rural = build_for("RURAL")
     urban = build_for("URBAN")
 
     return jsonify({"rural": rural, "urbano": urban})
 
 # ============================================================
-# ✅ API NODOS — /api/nodos (globos rojos)
+# ✅ API NODOS/COMERCIAL — /api/nodos
 #   - Devuelve nodos filtrados por departamento/provincia/distrito
+#   - Incluye resumen para Panel Comercial (por keywords del NOMBRE)
 # ============================================================
 @app.route("/api/nodos")
 @login_required
@@ -786,7 +816,7 @@ def api_nodos():
     dist = request.args.get("distrito", "").upper().strip()
 
     if df_nodos is None or df_nodos.empty:
-        return jsonify({"total": 0, "nodos": []})
+        return jsonify({"total": 0, "resumen": {}, "nodos": []})
 
     dff = df_nodos.copy()
     dff["DEPARTAMENTO"] = dff["DEPARTAMENTO"].astype(str).str.upper().str.strip()
@@ -797,19 +827,63 @@ def api_nodos():
     if prov: dff = dff[dff["PROVINCIA"] == prov]
     if dist: dff = dff[dff["DISTRITO"] == dist]
 
+    resumen = {
+        "total": 0,
+        "hospitales": 0,
+        "clinicas": 0,
+        "centros_comerciales": 0,
+        "plaza_vea": 0,
+        "sodimac": 0,
+        "metro": 0,
+        "tottus": 0,
+        "wong": 0,
+        "universidades": 0,
+        "mercados": 0,
+        "otros": 0,
+    }
+
     nodos = []
     for _, r in dff.iterrows():
+        nombre = str(r.get("NOMBRE","")).strip()
+        cat = nodo_categoria(nombre)
+
+        # conteos panel
+        resumen["total"] += 1
+        if cat == "HOSPITAL":
+            resumen["hospitales"] += 1
+        elif cat == "CLINICA":
+            resumen["clinicas"] += 1
+        elif cat == "CENTRO_COMERCIAL":
+            resumen["centros_comerciales"] += 1
+        elif cat == "PLAZA_VEA":
+            resumen["plaza_vea"] += 1
+        elif cat == "SODIMAC":
+            resumen["sodimac"] += 1
+        elif cat == "METRO":
+            resumen["metro"] += 1
+        elif cat == "TOTTUS":
+            resumen["tottus"] += 1
+        elif cat == "WONG":
+            resumen["wong"] += 1
+        elif cat == "UNIVERSIDAD":
+            resumen["universidades"] += 1
+        elif cat == "MERCADO":
+            resumen["mercados"] += 1
+        else:
+            resumen["otros"] += 1
+
         nodos.append({
             "ubigeo": str(r.get("UBIGEO","")).strip(),
             "departamento": str(r.get("DEPARTAMENTO","")).strip(),
             "provincia": str(r.get("PROVINCIA","")).strip(),
             "distrito": str(r.get("DISTRITO","")).strip(),
-            "nombre": str(r.get("NOMBRE","")).strip(),
+            "nombre": nombre,
+            "categoria": cat,
             "lat": float(r.get("LATITUD", 0.0)),
             "lon": float(r.get("LONGITUD", 0.0)),
         })
 
-    return jsonify({"total": len(nodos), "nodos": nodos})
+    return jsonify({"total": len(nodos), "resumen": resumen, "nodos": nodos})
 
 # ============================================================
 # 6. RUTAS MAPA
@@ -1000,7 +1074,7 @@ def api_points():
             "total_capa_C": total_capa_C,
         })
 
-    # ---------------------- CAPA OFICINAS ✅ (CON PROMEDIOS NUEVOS) ----------------------
+    # ---------------------- CAPA OFICINAS ----------------------
     if tipo_mapa == "oficinas":
         dff = df_oficinas.copy()
         dff[COLF_DEPT] = dff[COLF_DEPT].astype(str).str.upper().str.strip()
@@ -1021,7 +1095,7 @@ def api_points():
         prom_ead = float(dff[COLF_EAD].mean()) if total_oficinas > 0 else 0.0
         prom_cli = float(dff[COLF_CLI].mean()) if total_oficinas > 0 else 0.0
         prom_tkt = float(dff[COLF_TKT].mean()) if total_oficinas > 0 else 0.0
-        prom_red = float(dff[COLF_RED].mean()) if total_oficinas > 0 else 0.0  # 0..100
+        prom_red = float(dff[COLF_RED].mean()) if total_oficinas > 0 else 0.0
 
         puntos = []
         for _, r in dff.iterrows():
@@ -1170,7 +1244,6 @@ def api_resumen_clientes():
 
 # ============================================================
 # API INTEGRAL /api/points_integral — 3 CAPAS
-# ✅ AHORA DEVUELVE PROMEDIOS DE OFICINAS PARA EL PANEL
 # ============================================================
 @app.route("/api/points_integral")
 @login_required
@@ -1235,7 +1308,7 @@ def api_points_integral():
     prom_of_ead = float(dfO[COLF_EAD].mean()) if total_of > 0 else 0.0
     prom_of_cli = float(dfO[COLF_CLI].mean()) if total_of > 0 else 0.0
     prom_of_tkt = float(dfO[COLF_TKT].mean()) if total_of > 0 else 0.0
-    prom_of_red = float(dfO[COLF_RED].mean()) if total_of > 0 else 0.0  # 0..100
+    prom_of_red = float(dfO[COLF_RED].mean()) if total_of > 0 else 0.0
 
     for _, r in dfO.iterrows():
         puntos_of.append({
@@ -1316,10 +1389,8 @@ def api_points_integral():
 
 # ============================================================
 # 8. TEMPLATE MAPA — FRONTEND COMPLETO
-# ✅ + PROMEDIOS EN PANEL OFICINAS (OFICINAS + INTEGRAL)
-# ✅ + ÍCONOS MÁS GRANDES EN MAPA + LEYENDAS MÁS GRANDES
-# ✅ + CHECKBOX ZONAS RURAL/URBANA + BORDES NEÓN (4 CAPAS)
-# ✅ + CHECKBOX NODOS + GLOBOS ROJOS GRANDES (4 CAPAS)
+# ✅ + NODOS: icono rojo y popup con globo (no muestra rectángulos “siempre”)
+# ✅ + Panel Comercial (derecha) con conteos por categoría
 # ============================================================
 TEMPLATE_MAPA = """\
 <!doctype html>
@@ -1439,24 +1510,46 @@ TEMPLATE_MAPA = """\
     }
 
     /* ======================================================
-       ✅ NODOS — Globos rojos grandes con texto blanco + brillo
+       ✅ COMERCIAL / NODOS — icono rojo + popup globo (sin parpadeo)
        ====================================================== */
-    .leaflet-div-icon.nodo-icon{ background:transparent; border:none; }
+    .leaflet-div-icon.nodo-pin-icon{ background:transparent; border:none; }
+
+    .nodo-pin-wrap{
+      width:34px; height:34px;
+      filter: drop-shadow(0 0 10px rgba(255,0,0,0.85))
+              drop-shadow(0 0 18px rgba(255,40,0,0.55));
+    }
+    .nodo-pin-wrap svg{ width:34px; height:34px; display:block; }
+
+    /* Popup transparente para que se vea el globo “tal cual” */
+    .leaflet-popup.nodo-popup .leaflet-popup-content-wrapper{
+      background:transparent !important;
+      box-shadow:none !important;
+      padding:0 !important;
+      border-radius:0 !important;
+    }
+    .leaflet-popup.nodo-popup .leaflet-popup-content{
+      margin:0 !important;
+    }
+    .leaflet-popup.nodo-popup .leaflet-popup-tip{
+      background:transparent !important;
+      box-shadow:none !important;
+    }
+
     .nodo-balloon{
       position:relative;
       display:inline-block;
-      max-width:280px;
+      max-width:320px;
       padding:12px 16px;
-      background: radial-gradient(circle at 30% 25%, #ff9a9a 0%, #ff2a2a 35%, #b80000 100%);
+      background: radial-gradient(circle at 30% 25%, #ffb0b0 0%, #ff2a2a 35%, #b80000 100%);
       color:#fff;
       font-weight:900;
       font-size:14px;
       line-height:1.15;
-      border-radius:20px;
+      border-radius:18px;
       border:2px solid rgba(255,255,255,0.92);
       text-shadow: 0 1px 2px rgba(0,0,0,0.55);
       box-shadow: 0 0 18px rgba(255,0,0,0.85), 0 0 44px rgba(255,70,0,0.60);
-      animation:nodoPulse 1.7s ease-in-out infinite;
     }
     .nodo-balloon:after{
       content:"";
@@ -1470,10 +1563,20 @@ TEMPLATE_MAPA = """\
       border-top:14px solid #ff2a2a;
       filter: drop-shadow(0 0 12px rgba(255,0,0,0.95));
     }
-    @keyframes nodoPulse{
-      0%{ box-shadow:0 0 14px rgba(255,0,0,0.60), 0 0 34px rgba(255,80,0,0.35); transform:scale(1.00); }
-      50%{ box-shadow:0 0 26px rgba(255,0,0,0.98), 0 0 68px rgba(255,80,0,0.78); transform:scale(1.03); }
-      100%{ box-shadow:0 0 14px rgba(255,0,0,0.60), 0 0 34px rgba(255,80,0,0.35); transform:scale(1.00); }
+
+    /* Cluster rojo para comercial */
+    .nodo-cluster{
+      width:44px; height:44px;
+      border-radius:22px;
+      background: radial-gradient(circle at 30% 25%, #ffb0b0 0%, #ff2a2a 40%, #b80000 100%);
+      border:2px solid rgba(255,255,255,0.9);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      box-shadow: 0 0 18px rgba(255,0,0,0.85), 0 0 40px rgba(255,70,0,0.55);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.55);
     }
   </style>
 </head>
@@ -1557,8 +1660,8 @@ TEMPLATE_MAPA = """\
       <label style="margin-left:16px;"><input type="checkbox" id="chkHeatClientes"> Heatmap Clientes</label>
       <label style="margin-left:16px;"><input type="checkbox" id="chkReco"> Recomendaciones</label>
 
-      <!-- ✅ NODOS (globos rojos) -->
-      <label style="margin-left:16px;"><input type="checkbox" id="chkNodos" checked> Globos (NODOS)</label>
+      <!-- ✅ COMERCIAL / NODOS (pin rojo + panel comercial) -->
+      <label style="margin-left:16px;"><input type="checkbox" id="chkNodos"> Comercial (POIs)</label>
 
       <!-- ✅ ZONAS (aplica a las 4 capas) -->
       <div class="zone-box" style="margin-left:16px;">
@@ -1584,7 +1687,7 @@ TEMPLATE_MAPA = """\
       </div>
       {% endif %}
 
-      <!-- ✅ PANEL ZONAS (siempre visible) -->
+      <!-- ✅ PANEL ZONAS -->
       <div id="panelZonasLegend" class="side-card">
         <div class="side-title">🗺️ Zonas (Rural / Urbana)</div>
         <div class="muted">Bordes neón por filtros (Departamento / Provincia / Distrito). Funciona en las 4 capas.</div>
@@ -1600,6 +1703,39 @@ TEMPLATE_MAPA = """\
           <div class="legend-item">
             <div class="zone-swatch urban"></div>
             <div class="lbl">Urbana — amarillo fosforescente (<span id="zonaUrbanCount">0</span>)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ PANEL COMERCIAL -->
+      <div id="panelComercial" class="side-card hidden">
+        <div class="side-title">🏪 Panel Comercial</div>
+        <div class="muted">Se actualiza con filtros y solo cuenta si “Comercial (POIs)” está activado.</div>
+
+        <div style="margin-top:8px;"><b>Total POIs:</b> <span id="comTotal">0</span></div>
+
+        <div style="margin-top:10px; font-weight:800;">Conteo por tipo</div>
+        <div class="muted">Hospitales: <span id="comHosp">0</span></div>
+        <div class="muted">Clínicas: <span id="comClin">0</span></div>
+        <div class="muted">Centros comerciales: <span id="comCC">0</span></div>
+        <div class="muted">Plaza Vea: <span id="comPV">0</span></div>
+        <div class="muted">Sodimac: <span id="comSod">0</span></div>
+        <div class="muted">Metro: <span id="comMet">0</span></div>
+        <div class="muted">Tottus: <span id="comTot">0</span></div>
+        <div class="muted">Wong: <span id="comWon">0</span></div>
+        <div class="muted">Universidades: <span id="comUni">0</span></div>
+        <div class="muted">Mercados: <span id="comMer">0</span></div>
+
+        <div class="legend">
+          <div style="font-weight:700;">Leyenda</div>
+          <div class="legend-item">
+            <div class="nodo-pin-wrap" style="transform:scale(0.85);">
+              <svg viewBox="0 0 24 24" fill="#ff2a2a" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s7-4.5 7-12a7 7 0 0 0-14 0c0 7.5 7 12 7 12z"></path>
+                <circle cx="12" cy="10" r="2.7" fill="#ffffff" stroke="none"></circle>
+              </svg>
+            </div>
+            <div class="lbl">POI Comercial (click para ver nombre)</div>
           </div>
         </div>
       </div>
@@ -1762,17 +1898,10 @@ TEMPLATE_MAPA = """\
     map.createPane('zonesPane');
     map.getPane('zonesPane').style.zIndex = 380;
 
-    // ✅ Pane para NODOS (globos rojos arriba de todo)
-    map.createPane('nodosPane');
-    map.getPane('nodosPane').style.zIndex = 760;
-
     const markers = L.markerClusterGroup({chunkedLoading:true});
     const heat = L.heatLayer([], {radius:28, blur:22});
     const markersReco = L.layerGroup();
     const heatClientes = L.heatLayer([], { radius: 7, blur: 6, maxZoom: 18, minOpacity: 0.04 });
-
-    // ✅ Layer NODOS (globos)
-    const nodosLayer = L.layerGroup().addTo(map);
 
     markers.addTo(map);
     heat.addTo(map);
@@ -1794,54 +1923,147 @@ TEMPLATE_MAPA = """\
     const chkZonaRural  = document.getElementById("chkZonaRural");
     const chkZonaUrbana = document.getElementById("chkZonaUrbana");
 
-    // ✅ checkbox nodos
+    // ✅ comercial/nodos
     const chkNodos = document.getElementById("chkNodos");
+    const panelComercial = document.getElementById("panelComercial");
 
     const fmt2 = (v)=> (Number(v||0)).toFixed(2);
     const fmt0 = (v)=> String(Math.round(Number(v||0)));
     const fmtPct = (v)=> `${(Number(v||0)).toFixed(2)}%`;
 
-    // ======================================================
-    // ✅ NODOS — Globos rojos (fetch + render)
-    // ======================================================
     function escHtml(s){
       return String(s||"").replace(/[&<>"']/g, (c)=>({
         "&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#039;"
-      }[c]));
+      }[c] || c));
     }
 
-    function nodoIcon(nombre){
+    // ======================================================
+    // ✅ COMERCIAL/NODOS — pin rojo + popup globo + panel conteo
+    // ======================================================
+    const nodosCluster = L.markerClusterGroup({
+      chunkedLoading: true,
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      disableClusteringAtZoom: 15,
+      maxClusterRadius: 60,
+      iconCreateFunction: function(cluster){
+        const n = cluster.getChildCount();
+        return L.divIcon({
+          className: "nodo-cluster-icon",
+          html: `<div class="nodo-cluster">${n}</div>`,
+          iconSize: [44,44],
+          iconAnchor: [22,22]
+        });
+      }
+    });
+
+    function nodoPinIcon(){
+      const svg = `
+        <div class="nodo-pin-wrap">
+          <svg viewBox="0 0 24 24" fill="#ff2a2a" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s7-4.5 7-12a7 7 0 0 0-14 0c0 7.5 7 12 7 12z"></path>
+            <circle cx="12" cy="10" r="2.7" fill="#ffffff" stroke="none"></circle>
+          </svg>
+        </div>`;
       return L.divIcon({
-        className: "nodo-icon",
-        html: `<div class="nodo-balloon">${escHtml(nombre)}</div>`,
-        iconSize: [300, 90],
-        iconAnchor: [150, 90],
+        className: "nodo-pin-icon",
+        html: svg,
+        iconSize: [34,34],
+        iconAnchor: [17,34],
+        popupAnchor: [0,-30],
       });
     }
 
+    function nodoBalloonHtml(nombre){
+      return `<div class="nodo-balloon">${escHtml(nombre)}</div>`;
+    }
+
+    function syncComercialVisibility(){
+      if(!chkNodos) return;
+      const show = chkNodos.checked;
+      if(panelComercial) panelComercial.classList.toggle("hidden", !show);
+
+      if(!show){
+        // quita del mapa y limpia
+        try{
+          if(map.hasLayer(nodosCluster)) map.removeLayer(nodosCluster);
+        }catch(e){}
+        nodosCluster.clearLayers();
+        // resetea panel
+        setComercialCounts(null);
+      }else{
+        if(!map.hasLayer(nodosCluster)) nodosCluster.addTo(map);
+      }
+    }
+
+    function setComercialCounts(res){
+      const z = (id, v)=>{ const el=document.getElementById(id); if(el) el.textContent = String(v ?? 0); };
+      if(!res){
+        z("comTotal", 0); z("comHosp", 0); z("comClin", 0); z("comCC", 0);
+        z("comPV", 0); z("comSod", 0); z("comMet", 0); z("comTot", 0);
+        z("comWon", 0); z("comUni", 0); z("comMer", 0);
+        return;
+      }
+      z("comTotal", res.total);
+      z("comHosp", res.hospitales);
+      z("comClin", res.clinicas);
+      z("comCC", res.centros_comerciales);
+      z("comPV", res.plaza_vea);
+      z("comSod", res.sodimac);
+      z("comMet", res.metro);
+      z("comTot", res.tottus);
+      z("comWon", res.wong);
+      z("comUni", res.universidades);
+      z("comMer", res.mercados);
+    }
+
+    let _nodosLastKey = "";
+    let _nodosAbort = null;
+
     async function fetchNodos(){
       try{
-        nodosLayer.clearLayers();
-        if(!chkNodos || !chkNodos.checked) return;
+        if(!chkNodos || !chkNodos.checked){
+          syncComercialVisibility();
+          return;
+        }
+        syncComercialVisibility();
 
         const d = selDep.value, p = selProv.value, di = selDist.value;
         const qs = `departamento=${encodeURIComponent(d)}&provincia=${encodeURIComponent(p)}&distrito=${encodeURIComponent(di)}`;
 
-        const res = await fetch(`/api/nodos?${qs}`);
+        // evita refetch si no cambió
+        if(_nodosLastKey === qs && nodosCluster.getLayers().length > 0){
+          return;
+        }
+        _nodosLastKey = qs;
+
+        if(_nodosAbort){ try{ _nodosAbort.abort(); }catch(e){} }
+        _nodosAbort = new AbortController();
+
+        nodosCluster.clearLayers();
+
+        const res = await fetch(`/api/nodos?${qs}`, { signal: _nodosAbort.signal });
         const js = await res.json();
         const arr = js.nodos || [];
+        const resumen = js.resumen || null;
 
+        setComercialCounts(resumen);
+
+        // render markers
         arr.forEach(n=>{
-          const m = L.marker([n.lat, n.lon], {
-            pane: "nodosPane",
-            icon: nodoIcon(n.nombre),
-            zIndexOffset: 6000
+          const m = L.marker([n.lat, n.lon], { icon: nodoPinIcon(), zIndexOffset: 5000 });
+          // popup con globo “como antes”, pero solo cuando haces click
+          m.bindPopup(nodoBalloonHtml(n.nombre), {
+            className: "nodo-popup",
+            closeButton: false,
+            autoPan: true,
+            maxWidth: 360
           });
-          m.bindPopup(`<b>${escHtml(n.nombre)}</b><br>${escHtml(n.departamento)} / ${escHtml(n.provincia)} / ${escHtml(n.distrito)}`);
-          nodosLayer.addLayer(m);
+          nodosCluster.addLayer(m);
         });
       }catch(err){
-        console.error("Error cargando NODOS:", err);
+        if(String(err||"").includes("AbortError")) return;
+        console.error("Error cargando Comercial/NODOS:", err);
       }
     }
 
@@ -2057,6 +2279,7 @@ TEMPLATE_MAPA = """\
       if(panelATMResumen) panelATMResumen.classList.add("hidden");
       if(panelOfiResumen) panelOfiResumen.classList.add("hidden");
       if(panelAgResumen) panelAgResumen.classList.add("hidden");
+      // comercial no se oculta aquí (es independiente del panel detalle)
     }
 
     function syncSinglePanelsVisibility(){
@@ -2069,6 +2292,8 @@ TEMPLATE_MAPA = """\
     function showResumenPanels(){
       if(TIPO_MAPA === "integral"){ syncIntegralPanelsVisibility(); }
       else { syncSinglePanelsVisibility(); }
+      // comercial depende de checkbox
+      syncComercialVisibility();
     }
 
     function showRecoPanel(r){
@@ -2344,7 +2569,7 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
       // ✅ ZONAS (si está activado)
       await fetchZonasBorders();
 
-      // ✅ NODOS (globos rojos)
+      // ✅ COMERCIAL (pins + panel)
       await fetchNodos();
     }
 
@@ -2490,10 +2715,10 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
 
       syncIntegralPanelsVisibility();
 
-      // ✅ ZONAS (si está activado)
+      // ✅ ZONAS
       await fetchZonasBorders();
 
-      // ✅ NODOS (globos rojos)
+      // ✅ COMERCIAL
       await fetchNodos();
     }
 
@@ -2602,11 +2827,13 @@ _____________________ Promedio: ${pt.promedio} _____________________`;
     if(chkZonaRural)  chkZonaRural.onchange  = ()=> fetchZonasBorders();
     if(chkZonaUrbana) chkZonaUrbana.onchange = ()=> fetchZonasBorders();
 
-    // ✅ Evento NODOS (prender/apagar globos)
-    if(chkNodos) chkNodos.onchange = ()=> fetchNodos();
+    // ✅ Evento COMERCIAL (prender/apagar pins + panel)
+    if(chkNodos) chkNodos.onchange = ()=>{ syncComercialVisibility(); fetchNodos(); };
 
     // Inicializar
     updateProvincias();
+    syncComercialVisibility();
+
     if(TIPO_MAPA === "integral"){
       syncIntegralPanelsVisibility();
       fetchIntegral();
